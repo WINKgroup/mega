@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.watcherExclude": {
+			"build/**": true
+		},
+		"search.exclude": {
+			"build/**": true,
+			"package-lock.json": true
+		}
+	}
+}
