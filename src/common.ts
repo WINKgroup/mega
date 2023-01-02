@@ -31,67 +31,100 @@ export function getBytesByChildren(dir:MegaCmdFile) {
 
 /***********      LS       ***********/
 
-interface MegaLs {
+interface MegaCmdLs {
     usePcre: boolean
     recursive: boolean
 }
 
-export interface MegaLsOptions extends Partial<CmdOptions>, MegaLs {
+export interface MegaCmdLsOptions extends Partial<CmdOptions>, MegaCmdLs {
 }
 
-export interface MegaLsResult {
+export interface MegaCmdLsResult {
     state: 'success' | 'error'
     error?: string
-    file?: MegaCmdFile | false
+    file?: MegaCmdFile
 }
 
 /***********      RM       ***********/
 
-export interface MegaRmOptions extends Partial<CmdOptions> {
+export interface MegaCmdRmOptions extends Partial<CmdOptions> {
     recursive: boolean
     usePcre: boolean
 }
 
 /***********      DF       ***********/
 
-export interface MegaDfResultSection {
+export interface MegaCmdDfResultSection {
     bytes: number
     numOfFiles: number
     numOfFolders: number
 }
 
-export interface MegaDfResult {
+export interface MegaCmdDfResult {
     freeBytes: number,
     totalBytes: number,
     fileVersionsBytes: number
-    inbox: MegaDfResultSection
-    drive: MegaDfResultSection
-    trash: MegaDfResultSection
+    inbox: MegaCmdDfResultSection
+    drive: MegaCmdDfResultSection
+    trash: MegaCmdDfResultSection
 }
 
+/***********      TRANSFER       ***********/
+
+export interface MegaTransfer {
+    direction: string
+    sourcePath: string
+    destinationPath: string
+}
+
+export interface MegaTransferFile extends MegaTransfer {
+    bytes: number
+}
+
+export interface MegaTransferResult {
+    totalBytes: number
+    transfers: MegaTransferFile[]
+}
+
+export interface MegaCmdGetTransferResult extends MegaTransfer {
+    tag: number
+    percentage: number
+    totalBytes: number
+    state: string
+}
+
+export interface MegaCmdProgressTransfer extends MegaTransfer {
+    tag: number
+}
 
 /***********      STORAGE MEGA       ***********/
 
-export interface StorageMegaIsFileOkResult {
-    error?: 'unable to check' | 'file not found' | 'no bytes in file' | 'file size too different'
-    file?: MegaCmdFile
+export interface StorageMegaMethodResponse<T> {
+    state: 'success' | 'error'
+    error?: string
+    result?: T
 }
 
-export interface FileTransferMatch {
-    name: string
+export interface StorageMegaIsFileOkOptions {
+    toleranceBytesPercentage: number
+}
+
+export interface StorageMegaIsFileOkResult {
+    isOk: boolean
+    remoteBytes: number
+    message?: 'file not found' | 'file size too different'
+}
+
+export interface StorageMegaTransferFile {
     sourcePath: string
     destinationPath: string
-    bytes?: number
+    error?: string
+    bytes: number
+    state: 'success' | 'error'
 }
 
-export interface FileTransferResult extends FileTransferMatch {
-    state: 'success' | 'error'
-    error?: string
-}
-
-export interface TransferResult {
-    state: 'success' | 'error'
-    totalBytesTransferred: number
-    error?: string
-    files: FileTransferResult[]
+export interface StorageMegaTransferResult {
+    direction: 'upload' | 'download'
+    totalBytes: number
+    transfers: StorageMegaTransferFile[]
 }

@@ -1,3 +1,6 @@
+import Path from 'path'
+import glob from 'glob'
+import fs from 'fs'
 import Cmd, { CmdOptions } from "@winkgroup/cmd"
 import ConsoleLog, { LogLevel } from "@winkgroup/console-log"
 import EventQueue from "@winkgroup/event-queue"
@@ -6,21 +9,17 @@ import Network from "@winkgroup/network"
 import _ from "lodash"
 import { EventEmitter } from "node:events"
 
-import { getBytesByChildren, MegaCmdFile, MegaCmdOptions, MegaDfResult, MegaDfResultSection,  MegaLsOptions, MegaLsResult, MegaRmOptions } from "./common"
+import { getBytesByChildren, MegaCmdFile, MegaCmdGetTransferResult, MegaCmdOptions, MegaCmdDfResult, MegaCmdDfResultSection,  MegaCmdLsOptions, MegaCmdLsResult, MegaCmdRmOptions, MegaTransfer, MegaTransferResult, MegaTransferFile, MegaCmdProgressTransfer } from "./common"
 
-/***********     MEGA GET       ***********/
-
-export interface MegaGetOptions extends CmdOptions {
+export interface MegaCmdGetOptions extends CmdOptions {
     merge: boolean
     usePcre: boolean
-    onTransfer?: EventEmitter
+    onProgress?: EventEmitter
 }
 
-/***********      MEGA PUT       ***********/
-
-export interface MegaPutOptions extends CmdOptions {
+export interface MegaCmdPutOptions extends CmdOptions {
     createRemoteFolder: boolean
-    onTransfer?: EventEmitter
+    onProgress?: EventEmitter
 }
 
 export default class MegaCmd {
@@ -93,14 +92,14 @@ export default class MegaCmd {
         delete this.consoleLog.generalOptions.id
     }
 
-    async df():Promise<MegaDfResult | false> {
+    async df():Promise<MegaCmdDfResult | false> {
         let output = ''
         let usedBytes = 0
         let totalBytes = 0
         let fileVersionsBytes = 0
-        let drive:MegaDfResultSection
-        let inbox:MegaDfResultSection
-        let trash:MegaDfResultSection
+        let drive:MegaCmdDfResultSection
+        let inbox:MegaCmdDfResultSection
+        let trash:MegaCmdDfResultSection
         const ref = this
 
         function parsingError(line:string) {
@@ -126,7 +125,7 @@ export default class MegaCmd {
         function setDataFromGeneralLine(line:string) {
             const matches = line.match(/(.+):\s+(\d+) in\s+(\d+) file\(s\) and\s+(\d+) folder\(s\)/)
             if (!matches) return parsingError(line)
-            const result:MegaDfResultSection = {
+            const result:MegaCmdDfResultSection = {
                 bytes: parseInt(matches[2]),
                 numOfFiles: parseInt(matches[3]),
                 numOfFolders: parseInt(matches[4])
@@ -158,7 +157,7 @@ export default class MegaCmd {
         }
 
         const freeBytes = totalBytes - usedBytes
-        const result:MegaDfResult = {
+        const result:MegaCmdDfResult = {
             trash: trash!,
             drive: drive!,
             inbox: inbox!,
@@ -171,15 +170,15 @@ export default class MegaCmd {
         return result
     }
 
-    async ls(remotepath = '', inputOptions?:Partial<MegaLsOptions>) {
+    async ls(remotepath = '', inputOptions?:Partial<MegaCmdLsOptions>) {
         const ref = this
 
-        const options:MegaLsOptions = _.defaults(inputOptions, {
+        const options:MegaCmdLsOptions = _.defaults(inputOptions, {
             usePcre: false,
             recursive: false
         })
 
-        const result:MegaLsResult = {
+        const result:MegaCmdLsResult = {
             state: 'success'
         }
 
@@ -246,7 +245,13 @@ export default class MegaCmd {
             const isDir = isDirectory(flags)
             if (isDir === null) return result
 
-            const fullPath = remotepath ? remotepath + (name ? '/' + name : '') : name
+            let fullPath = await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)
+            if (fullPath === false) {
+                result.state = 'error'
+                result.error = `unable to get fullPath for "${ remotepath }" remotepath`
+                return result
+            }
+            fullPath = Path.join(fullPath, name)
             const el:MegaCmdFile = {
                 name: name,
                 path: fullPath,
@@ -285,9 +290,15 @@ export default class MegaCmd {
 
         if (files.length === 1 && files[0].type === 'file') result.file = files[0]
         else {
+            const fullPath = await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)
+            if (fullPath === false) {
+                result.state = 'error'
+                result.error = `unable to get fullPath for "${ remotepath }" remotepath`
+                return result
+            }
             const dir:MegaCmdFile = {
                 name: MegaCmd.getNameFromPath(remotepath),
-                path: remotepath,
+                path: fullPath,
                 type: 'directory',
                 children: files
             }
@@ -300,8 +311,88 @@ export default class MegaCmd {
         return result
     }
 
-    async put(localpath:string | string[], remotepath = '', inputOptions?:Partial<MegaPutOptions>) {
-        const options:Partial<MegaPutOptions> = _.defaults(inputOptions, {
+    async pwd() {
+        const cmd = await this.run('mega-pwd', {
+            consoleLogGeneralOptions: { verbosity: LogLevel.NONE }
+        })
+
+        return cmd.exitCode === 0 ? cmd.stdout.data.trim() : false
+    }
+
+    async getRemotePathType(remotepath:string) {
+        const result = await this.ls(remotepath)
+        if (result.state === 'error') return false
+        if (!result.file) return 'none'
+        return result.file.type
+    }
+
+    async getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath:string) {
+        if (remotepath[0] === '/') return remotepath
+        const pwd = await this.pwd()
+        if (pwd === false) return false
+        if (!remotepath) return pwd
+        return pwd[pwd.length - 1] !== '/' ? pwd + '/' + remotepath : pwd + remotepath
+    }
+
+    async put2transfers(localpath:string | string[], remotepath = '') {
+        const result:MegaTransferResult = {
+            totalBytes: 0,
+            transfers: []
+        }
+        if (typeof localpath !== 'string') {
+            for (const localpathEl of localpath) {
+                const resultEl = await this.put2transfers(localpathEl, remotepath)
+                if (!resultEl) return false
+                result.totalBytes += resultEl.totalBytes
+                result.transfers = result.transfers.concat(resultEl.transfers)
+            }
+            return result
+        }
+
+        const list = glob.sync(localpath, { dot: true })
+        const workingDir = process.cwd()
+        const absRemotePath =  await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)
+        if (absRemotePath === false) return false
+
+        const addTransferToResult = (localFilename:string, stats?:fs.Stats) => {
+            if (!stats) stats = fs.statSync(localFilename, {throwIfNoEntry: false})
+            if (!stats) {
+                this.consoleLog.error(`no stats for "${ localFilename }" on put2transfers`)
+                return false
+            }
+
+            const destinationPath = absRemotePath[absRemotePath.length - 1] !== '/' ? absRemotePath + '/' + localFilename : absRemotePath + localFilename
+            const transfer:MegaTransferFile = {
+                direction: 'upload',
+                sourcePath: Path.join(workingDir, localFilename),
+                destinationPath: destinationPath,
+                bytes: stats.size
+            }
+
+            result.totalBytes += stats.size
+            result.transfers.push(transfer)
+            return true
+        }
+
+        for (const filename of list) {
+            const stats = fs.statSync(filename, {throwIfNoEntry: false})
+            if (stats) {
+                if (stats.isDirectory()) {
+                    const subList = glob.sync(Path.join(filename, '**/*'), { dot: true, nodir: true })
+                    for(const subFilename of subList) addTransferToResult(subFilename)
+                }
+                    else addTransferToResult(filename, stats)
+            } else {
+                this.consoleLog.error(`no stats for "${ filename }" on put2transfers`)
+                return false
+            }
+        }
+
+        return result
+    }
+
+    async put(localpath:string | string[], remotepath = '', inputOptions?:Partial<MegaCmdPutOptions>) {
+        const options:Partial<MegaCmdPutOptions> = _.defaults(inputOptions, {
             args: [],
             createRemoteFolder: false,
             getResult: false,
@@ -313,15 +404,17 @@ export default class MegaCmd {
         if (typeof localpath !== 'string') localpath.map( p => args.push(p) )
             else args.push(localpath)
         if (remotepath) args.push(remotepath)
+            else if(typeof localpath !== 'string' && localpath.length > 1) args.push()
         options.args = args
  
         const cmd = new Cmd('mega-put', options)
-        await this.transfer(cmd)
+
+        await this.progress(cmd, options.onProgress)
         return cmd.exitCode === 0
     }
 
-    async get(remotepath:string, localpath = '', inputOptions?:Partial<MegaGetOptions>) {
-        const options:MegaGetOptions = _.defaults(inputOptions, {
+    async get(remotepath:string, localpath = '', inputOptions?:Partial<MegaCmdGetOptions>) {
+        const options:MegaCmdGetOptions = _.defaults(inputOptions, {
             args: [],
             usePcre: false,
             merge: false,
@@ -338,14 +431,15 @@ export default class MegaCmd {
         options.args = args
 
         const cmd = new Cmd('mega-get', options)
-        await this.transfer(cmd, options.onTransfer)
+        await this.progress(cmd)
         return cmd.exitCode === 0
     }
 
-    private async transfer(cmd:Cmd, onTransfer?:EventEmitter) {
-        const mega = this
+    protected async progress(cmd:Cmd, inputOptions?:EventEmitter) {
         cmd.consoleLog = this.consoleLog.spawn()
         cmd.stderr.logLevel = LogLevel.DEBUG
+        const onProgress = inputOptions
+        const mega = this
 
         function transferringParser(text:string) {
             const parsed = text.match(/\((\d+)\/(\d+)\s+([^:]+):\s+([0-9.]+)\s+%\)/)
@@ -356,15 +450,12 @@ export default class MegaCmd {
 
             let unit = 1
             switch(parsed[3]) {
-                case 'KB':
-                    unit = 1000
-                    break
-                case 'MB':
-                    unit = 1000000
-                    break
+                case 'KB': unit = 1000;         break
+                case 'MB': unit = 1000000;      break
+                case 'GB': unit = 1000000000;   break
                 default:
-                mega.consoleLog.warn(`transferring parsing unit unknown: ${ parsed[3] }`)
-                return null
+                    mega.consoleLog.warn(`transferring parsing unit unknown: ${ parsed[3] }`)
+                    return null
             }
 
             return {
@@ -379,18 +470,129 @@ export default class MegaCmd {
                 const text = data.toString()
                 if (text.indexOf('TRANSFERRING') !== -1) {
                     const info = transferringParser(text)
-                    if (info) onTransfer!.emit('progress', info)
+                    if (info) onProgress!.emit('progress', info)
                 }
             }
         }
 
-        if (onTransfer) cmd.stderr.addListener('data', listener)
-        await cmd.run()
-        if (onTransfer) cmd.stderr.removeListener('data', listener)
+        function transferErrorMessage(action:string, tag?:number) {
+            const secondPart = tag ? `transfer with tag ${ tag }` : 'all transfers'
+            const err = `unable to ${ action} ` + secondPart
+            mega.consoleLog.warn(err)
+        }
+
+        return new Promise<void>( async resolve => {
+            const childProcess = cmd.start()
+
+            if (childProcess) {
+                if (onProgress) {
+                    const transfers = await mega.getTransfers()
+                    if (transfers) onProgress.emit('transfers', transfers)
+                        else mega.consoleLog.warn('unable to get transfers during progress')
+                    
+                    cmd.stderr.addListener('data', listener)
+
+                    onProgress.on('stop', async (tag?:number) => { if (!await this.cancelTransfers(tag)) transferErrorMessage('stop', tag)})
+                    onProgress.on('resume', async (tag?:number) => { if (!await this.resumeTransfers(tag)) transferErrorMessage('resume', tag)})
+                    onProgress.on('pause', async (tag?:number) => { if (!await this.pauseTransfers(tag)) transferErrorMessage('pause', tag)})
+                }
+                childProcess.on('close', () => {
+                    if (onProgress) cmd.stderr.removeListener('data', listener)
+                    resolve()
+                })
+            }
+                else resolve()
+        })
     }
 
-    async rm(remotepath:string, inputOptions?:Partial<MegaRmOptions>) {
-        const options:MegaRmOptions = _.defaults(inputOptions, {
+    async getTransfers() {
+        const cmd = await this.run('mega-transfers', {
+            args: ['--path-display-size=10000'],
+            consoleLogGeneralOptions: { verbosity: LogLevel.NONE }
+        })
+        const lines = cmd.stdout.data.split("\n")
+        let generalState = 'running'
+        if (lines[0].indexOf('PAUSED') !== -1) {
+            lines.shift()
+            generalState = 'paused'
+        }
+        lines.shift() // remove header
+
+        const result = [] as MegaCmdGetTransferResult[]
+
+        for(const line of lines) {
+            if (!line) continue
+            const fields = line.split(" ").filter( field => !!field)
+
+            // first field: direction
+            let direction = ''
+            switch (fields[0]) {
+                case '⇓': direction = 'download'; break
+                case '⇑': direction = 'upload'; break
+                case '⇵': direction = 'sync'; break
+                case '⏫': direction = 'backup'; break
+                default:
+                    this.consoleLog.error(`unrecognized "${ fields[0] }" symbol in transfer command`)
+                    return false
+            }
+
+            // second field: tag
+            const tag = parseInt(fields[1])
+            if (tag === 0) {
+                this.consoleLog.error(`unrecognized "${ fields[1] }" tag in transfer command`)
+                return false
+            }
+
+            // fifth field: percentage
+            const percentage = parseFloat(fields[4])
+            if (percentage === 0) {
+                this.consoleLog.error(`unrecognized "${ fields[4] }" percentage in transfer command`)
+                return false
+            }
+
+            // bytes
+            let totalBytes = parseFloat(fields[6])
+            switch (fields[7]) {
+                case 'KB': totalBytes *= 1000;           break
+                case 'MB': totalBytes *= 1000000;        break
+                case 'GB': totalBytes *= 1000000000;     break
+                default:
+                    this.consoleLog.error(`unrecognized "${ fields[7] }" as totalBytes unit in transfer command`)
+                    return false
+            }
+
+            // state
+            let state = fields[8].toLowerCase()
+            if (generalState === 'paused') state = 'paused'
+
+            const el:MegaCmdGetTransferResult = {
+                direction: direction,
+                tag: tag,
+                sourcePath: fields[2],
+                destinationPath: fields[3],
+                percentage: percentage,
+                totalBytes: totalBytes,
+                state: state
+            }
+            result.push(el)
+        }
+
+        return result
+    }
+
+    protected async actionTransfers(actionOption:string, tag?:number) {
+        const args = [ actionOption ] as string[]
+        args.push( tag ? tag.toString() : '-a' )
+        const cmd = await this.run('mega-transfers', { args: args })
+        return cmd.exitCode === 0
+    }
+
+    pauseTransfers(tag?:number) { return this.actionTransfers('-p', tag) }
+    resumeTransfers(tag?:number) { return this.actionTransfers('-r', tag) }
+    cancelTransfers(tag?:number) { return this.actionTransfers('-c', tag) }
+
+    async rm(remotepath:string, inputOptions?:Partial<MegaCmdRmOptions>) {
+        const options:MegaCmdRmOptions = _.defaults(inputOptions, {
             usePcre: false,
             recursive: false,
             getResult: false,
@@ -552,6 +754,6 @@ export default class MegaCmd {
 
     static getNameFromPath(path:string) {
         const lastSlash = path.lastIndexOf('/')
-        return lastSlash !== -1 ? path.substring(lastSlash + 1) : ''
+        return lastSlash !== -1 ? path.substring(lastSlash + 1) : path
     }
 }

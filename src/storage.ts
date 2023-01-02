@@ -1,48 +1,34 @@
-import Path from 'path'
-import fs from 'fs'
 import ConsoleLog from "@winkgroup/console-log"
 import { byteString } from "@winkgroup/misc"
+import fs from 'fs'
 import _ from "lodash"
-import MegaCmd, { MegaPutOptions } from "."
-import { FileTransferResult, MegaLsOptions, MegaLsResult, MegaRmOptions, StorageMegaIsFileOkResult, TransferResult } from "./common"
+import MegaCmd, { MegaCmdPutOptions } from "."
+import { MegaCmdDfResult, MegaCmdFile, MegaCmdFileType, MegaCmdLsOptions, MegaCmdLsResult, MegaCmdRmOptions, StorageMegaIsFileOkOptions, StorageMegaIsFileOkResult, StorageMegaMethodResponse, StorageMegaTransferFile, StorageMegaTransferResult } from "./common"
 
 export interface StorageMegaInput {
     email: string
     password: string
     timeoutInSecondsToGetMegaCmd?: number
     consoleLog?: ConsoleLog
-}
-
-export interface StorageMegaLsOptions extends MegaLsOptions {
     megaCmd?: MegaCmd
 }
 
-export interface StorageMegaIsFileOkOptions {
-    expectedBytes?: number
-    toleranceBytesPercentage: number
-    megaCmd?: MegaCmd
-}
-
-export interface StorageMegaUploadOptions extends MegaPutOptions {
-    megaCmd?: MegaCmd
+export interface StorageMegaUploadOptions extends MegaCmdPutOptions {
     allowOverwrite: boolean
     deleteOriginal: boolean
-    simulate: boolean
 }
 
 export interface StorageMegaDfOptions {
-    megaCmd?: MegaCmd
     noLogs: boolean
 }
 
-export interface StorageMegaDeleteOptions extends MegaRmOptions {
-    megaCmd?: MegaCmd
-}
+type StorageMegaLockAndLogin = 'already locked' | 'newly locked' | 'unable to lock' | 'unable to login'
 
 export default class StorageMega {
     email: string
     password: string
     timeoutInSecondsToGetMegaCmd?: number
+    megaCmd = null as MegaCmd | null
     consoleLog: ConsoleLog
 
     constructor(input:StorageMegaInput) {
@@ -50,221 +36,193 @@ export default class StorageMega {
         this.password = input.password
         this.timeoutInSecondsToGetMegaCmd = input.timeoutInSecondsToGetMegaCmd
         this.consoleLog = input.consoleLog ? input.consoleLog : new ConsoleLog({ prefix: 'StorageMega' })
+        if (input.megaCmd) this.megaCmd = input.megaCmd
     }
 
-    protected async getMegaCmdAndLogin(inputMega = null as MegaCmd | null, lockingString:string) {
-        let megaCmd = inputMega
-        if (!megaCmd) {
-            if (typeof this.timeoutInSecondsToGetMegaCmd !== 'undefined') megaCmd = await MegaCmd.getOrWait(lockingString, this.timeoutInSecondsToGetMegaCmd)
-                else megaCmd = await MegaCmd.get(lockingString)
-            if (!megaCmd) {
+    protected async getMegaCmdAndLogin(lockingString:string):Promise<StorageMegaLockAndLogin> {
+        const previouslyLocked = !!this.megaCmd
+
+        if (!this.megaCmd) {
+            if (typeof this.timeoutInSecondsToGetMegaCmd !== 'undefined') this.megaCmd = await MegaCmd.getOrWait(lockingString, this.timeoutInSecondsToGetMegaCmd)
+                else this.megaCmd = await MegaCmd.get(lockingString)
+            if (!this.megaCmd) {
                 if (this.timeoutInSecondsToGetMegaCmd !== 0) this.consoleLog.warn(`timeout or fail in getOrWait with lockingString "${ lockingString }"`)
                     else this.consoleLog.debug(`megaCmd not available for lockingString "${ lockingString }"`)
-                return null
+                return 'unable to lock'
             }
         }
 
-        if (!await megaCmd.login(this.email, this.password)) {
+        if (!await this.megaCmd.login(this.email, this.password)) {
             this.consoleLog.warn(`unable to login with lockingString "${ lockingString }"`)
-            if (!inputMega && MegaCmd.getLockedBy() === lockingString) MegaCmd.unlock(lockingString)
-            return null
+            MegaCmd.unlock(lockingString)
+            return 'unable to login'
         }
 
-        return megaCmd
+        return previouslyLocked ? 'already locked' : 'newly locked'
     }
 
-    async df(inputOptions?:Partial<StorageMegaDfOptions>) {
+    protected unlockEventually(lockingString:string, lockAndLogin:StorageMegaLockAndLogin) {
+        if (lockAndLogin === 'newly locked') MegaCmd.unlock(lockingString)
+    }
+
+    async df(inputOptions?:Partial<StorageMegaDfOptions>):Promise<StorageMegaMethodResponse<MegaCmdDfResult>> {
         const options = _.defaults(inputOptions, { noLogs: false })
         const lockingString = `storage ${ this.email } df`
-        const megaCmd = await this.getMegaCmdAndLogin(options.megaCmd, lockingString)
-        if (!megaCmd) return false
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
         
         const result = await megaCmd.df()
+        this.unlockEventually(lockingString, lockResult)
 
-        if (result && !options.noLogs)
+        if (!result) return { state: 'error', error: 'unable to df / parsing error' }
+
+        if (!options.noLogs)
             this.consoleLog.print(`free bytes: ${ byteString(result.freeBytes) } / ${ byteString(result.totalBytes) }`)
         
-        if (!options.megaCmd) MegaCmd.unlock(lockingString)
-        return result
+        return { state:'success', result: result }
     }
 
-    async getPathType(path:string, inputMegaCmd = null as MegaCmd | null) {
+    async getPathType(path:string):Promise<StorageMegaMethodResponse<"none" | MegaCmdFileType>> {
         const lockingString = `storage ${ this.email } getPathType`
-        const megaCmd = await this.getMegaCmdAndLogin(inputMegaCmd, lockingString)
-        if (!megaCmd) return false
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
 
-        const result = await megaCmd.ls(path)
-        if (!inputMegaCmd) MegaCmd.unlock(lockingString)
-        if (result.state === 'error') return false
+        const result = await megaCmd.getRemotePathType(path)
+        this.unlockEventually(lockingString, lockResult)
 
-        if (!result.file) return 'none'
-        return result.file.type
+        if ( result === false ) return { state: 'error', error: 'unable to get path type'}
+        return { state: 'success', result: result }
     }
 
-    async ls(remotepath = '', inputOptions?:Partial<StorageMegaLsOptions>) {
-        const options = _.defaults(inputOptions, {})
+    async ls(remotepath = '', inputOptions?:Partial<MegaCmdLsOptions>):Promise<StorageMegaMethodResponse<MegaCmdFile>> {
         const lockingString = `storage ${ this.email } ls`
-        const megaCmd = await this.getMegaCmdAndLogin(options.megaCmd, lockingString)
-        if (!megaCmd) {
-            const result:MegaLsResult = { state: 'error', error: 'unable to get megaCmd'}
-            return result
-        }
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
 
         const result = await megaCmd.ls(remotepath, inputOptions)
-        if (!options.megaCmd) MegaCmd.unlock(lockingString)
-        return result
-    }
+        this.unlockEventually(lockingString, lockResult)
 
-    async isFileOk(remotepath:string, inputOptions?:Partial<StorageMegaIsFileOkOptions>):Promise<StorageMegaIsFileOkResult> {
-        const options = _.defaults(inputOptions, {toleranceBytesPercentage: .05})
-        const lockingString = `storage ${ this.email } isFileOk`
-        const megaCmd = await this.getMegaCmdAndLogin(options.megaCmd, lockingString)
-        if (!megaCmd) return { error: 'unable to check' }
-        const lsResult = await this.ls(remotepath, { megaCmd: options.megaCmd })
-        if (!options.megaCmd) MegaCmd.unlock(lockingString)
-        if (lsResult.state == 'error') return { error: 'unable to check' }
-        if (!lsResult.file) return { error: 'file not found' }
+        const response = {
+            state: result.state,
+            error: result.error,
+            result: result.file
+        }
         
-        const result = { file: lsResult.file }
-        delete result.file.children
-
-        if (options.expectedBytes) {
-            if (!result.file.bytes) return { ...result, error: 'no bytes in file' }
-            const byteDiff = Math.abs(result.file.bytes - options.expectedBytes) / options.expectedBytes
-            if (byteDiff > options.toleranceBytesPercentage) return { ...result, error: 'file size too different' }
-        }
-
-        return result
+        return response
     }
 
-    async upload(localpath:string | string[], remotepath = '', inputOptions?:Partial<StorageMegaUploadOptions>) {
+    async isFileOk(remotepath:string, expectedBytes:number, inputOptions?:Partial<StorageMegaIsFileOkOptions>):Promise< StorageMegaMethodResponse <StorageMegaIsFileOkResult> > {
+        const options = _.defaults(inputOptions, {toleranceBytesPercentage: .05})
+        const lsResult = await this.ls(remotepath, {recursive: true})
+        if (lsResult.state === 'error') return { state: 'error', error: lsResult.error }
+        if (!lsResult.result) return {state: 'success', result: { isOk: false, message: 'file not found', remoteBytes: 0 } }
+
+        const file = lsResult.result as MegaCmdFile
+        if (!file.bytes) return { state: 'error', error: 'no bytes in file' }
+        const byteDiff = Math.abs(file.bytes - expectedBytes) / expectedBytes
+        if (byteDiff > options.toleranceBytesPercentage) return {state: 'success', result: { isOk: false, message: 'file size too different', remoteBytes: file.bytes } }
+        return {state: 'success', result: { isOk: true, remoteBytes: file.bytes } }
+    }
+
+    async upload(localpath:string | string[], remotepath = '', inputOptions?:Partial<StorageMegaUploadOptions>):Promise< StorageMegaMethodResponse <StorageMegaTransferResult> > {
+        const options = _.defaults(inputOptions, { allowOverwrite: false, deleteOriginal: false })
         const lockingString = `storage ${ this.email } upload`
-        const options = _.defaults(inputOptions, {
-            allowOverwrite: false,
-            deleteOriginal: false,
-            simulate: false
-        })
-        const megaCmd = await this.getMegaCmdAndLogin(options.megaCmd, lockingString)
-        let bytesToUpload = 0
-        const result:TransferResult = {
-            state: 'success',
-            totalBytesTransferred: 0,
-            files: []
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
+        let responseState = 'success'
+        const result:StorageMegaTransferResult = {
+            direction: 'upload',
+            totalBytes: 0,
+            transfers: []
         }
 
-        if (!megaCmd) {
-            result.state = 'error'
-            result.error = 'unable to lock or login megaCmd'
-            return result
+        const setError = (error:string) => {
+            this.unlockEventually(lockingString, lockResult)
+            return { state: 'error' as "success" | "error", error: error }
         }
 
-        function setError(obj:TransferResult, message:string, unlock = true) {
-            obj.state = 'error'
-            obj.error = message
-            if (!options.megaCmd && unlock) MegaCmd.unlock(lockingString)
-            return obj
+        const filesToUpload = await megaCmd.put2transfers(localpath, remotepath)
+        if (!filesToUpload) return setError('unable to determinate transfers during upload')
+
+        if (filesToUpload.transfers.length === 0) {
+            this.unlockEventually(lockingString, lockResult)
+            return { state: 'success', result: result }
         }
 
-        // checking if source files exist and destination will not be overwritten
-        const remotePathType = await this.getPathType(remotepath, megaCmd)
-        if (remotePathType === false)
-            return setError(result, 'unable to check if remotepath exists')
-        if (remotePathType === 'file' && !options.allowOverwrite) 
-            return setError(result, 'overwrite not allowed')
-        if (remotePathType === 'file' && typeof localpath !== 'string')
-            return setError(result, 'remotepath is a file, but we have multiple localpaths')
-
-        const localFilePaths = (typeof localpath === 'string' ? [ localpath ] : localpath)
-        for (const localFilePath of localFilePaths) {
-            const localName = Path.basename(localFilePath)
-            const remotePath = remotePathType === 'directory' ? Path.join(remotepath, localName) : remotepath
-            const remoteName = Path.basename(remotePath)
-            const fileCheck:FileTransferResult = {
-                state: 'success',
-                destinationPath: remotePath,
-                sourcePath: localFilePath,
-                name: remoteName
-            }
-            const stats = fs.statSync(fileCheck.sourcePath, {throwIfNoEntry: false})
-            if (!stats) {
-                fileCheck.state = 'error'
-                fileCheck.error = 'source file not found'
-                result.state = 'error'
+        if (!options.allowOverwrite) {
+            if (filesToUpload.transfers.length > 1) {
+                // TODO
+                throw new Error('allowOverwrite on multiple files not implemented: should match ls with list of transfers')
             } else {
-                bytesToUpload += stats.size
-                if (options.simulate) {
-                    fileCheck.bytes = stats.size
-                    result.totalBytesTransferred += stats.size
-                }
+                const remotepath = filesToUpload.transfers[0].destinationPath
+                const fileTypeResponse = await this.getPathType(remotepath)
+                let error = ''
+                if (fileTypeResponse.state === 'error') error = fileTypeResponse.error!
+                    else if ( fileTypeResponse.result !== 'none' ) error = `overwriting "${ remotepath }" not allowed`
+                if (error) return setError( error )
             }
-            
-            if (fileCheck.state !== 'error' && remotePathType === 'directory') {
-                const remoteFileType = await this.getPathType(fileCheck.destinationPath, megaCmd)
-                if (remoteFileType === false) this.consoleLog.warn(`unable to check if "${ fileCheck.destinationPath }" is already present, let's consider it is not`)
-                if (remoteFileType !== 'none' && !options.allowOverwrite) {
-                    fileCheck.state = 'error'
-                    fileCheck.error = 'overwrite not allowed'
-                    result.state = 'error'
-                }
-            }
-
-            result.files.push(fileCheck)
-        }
-        if (result.state === 'error') {
-            if (!options.megaCmd) MegaCmd.unlock(lockingString)
-            return result
         }
 
-        const dfResult = await megaCmd.df()
-        if (!dfResult) return setError(result, 'unable to run df')
-        if (dfResult.freeBytes <= bytesToUpload) return setError(result, 'not enough space')
+        const dfResult = await this.df()
+        if (dfResult.error) return setError(dfResult.error)
+        if (dfResult.result!.freeBytes <= filesToUpload.totalBytes) return setError('not enough space')
 
         // go!
-        if (!options.simulate) {
-            const cmdResult = await megaCmd.put(localpath, remotepath, options)
-            if (!cmdResult) {
-                result.error = 'error in megaCmd upload'
-                result.state = 'error'
-                if (!options.megaCmd) MegaCmd.unlock(lockingString)
-                return result
-            }
+        const cmdResult = await megaCmd.put(localpath, remotepath, options)
+        if (!cmdResult) return setError('error in megaCmd upload')
         
-            // check
-            for(const fileTransferResult of result.files) {
-                const localBytes = fs.statSync(fileTransferResult.sourcePath).size
-                const isFileOk = await this.isFileOk(fileTransferResult.destinationPath, {
-                    expectedBytes: localBytes,
-                    megaCmd: megaCmd
-                })
-    
-                if (isFileOk.file && isFileOk.file.bytes) {
-                    fileTransferResult.bytes = isFileOk.file.bytes
-                    result.totalBytesTransferred += isFileOk.file.bytes
-                }
-    
-                if (isFileOk.error) {
-                    fileTransferResult.error = isFileOk.error
-                    fileTransferResult.state = 'error'
-                    result.state = 'error'
-                    continue
-                }
-    
-                this.consoleLog.debug(`"${ fileTransferResult.name }" correctly uploaded`)
-                if (options.deleteOriginal) fs.unlinkSync(fileTransferResult.sourcePath)
+        // check
+        for(const fileTransferExpected of filesToUpload.transfers) {
+            const localBytes = fileTransferExpected.bytes
+            const isFileOkResponse = await this.isFileOk(fileTransferExpected.destinationPath, localBytes)
+            if (isFileOkResponse.state === 'error') return setError(isFileOkResponse.error!)
+            const isFileOkResult = isFileOkResponse.result!
+            result.totalBytes += isFileOkResult.remoteBytes
+            const transferResult:StorageMegaTransferFile = {
+                sourcePath: fileTransferExpected.sourcePath,
+                destinationPath: fileTransferExpected.destinationPath,
+                state: isFileOkResult.isOk ? 'success' : 'error',
+                error: isFileOkResult.message,
+                bytes: isFileOkResult.remoteBytes
             }
+            result.transfers.push(transferResult)
+
+            const transferStr = `upload ${ fileTransferExpected.sourcePath } => ${ fileTransferExpected.destinationPath }`
+            
+            if (!isFileOkResult.isOk) {
+                responseState = 'error'
+                this.consoleLog.error(transferStr + `: ${ isFileOkResult.message }`)
+            }
+                else this.consoleLog.debug(transferStr + `: ok!`)
+
+            if (options.deleteOriginal && isFileOkResult.isOk) fs.unlinkSync( fileTransferExpected.sourcePath )
         }
 
-        if (!options.megaCmd) MegaCmd.unlock(lockingString)
-
-        return result
+        this.unlockEventually(lockingString, lockResult)
+        return { state: 'success', result: result}
     }
 
-    async rm(remotepath:string, inputOptions?:Partial<StorageMegaDeleteOptions>) {
-        const lockingString = `storage ${ this.email } delete`
-        const options = _.defaults(inputOptions, {})
-        const megaCmd = await this.getMegaCmdAndLogin(options.megaCmd, lockingString)
-        if (!megaCmd) return 'unable to lock or login megaCmd'
+    async rm(remotepath:string, inputOptions?:Partial<MegaCmdRmOptions>) {
+        const lockingString = `storage ${ this.email } rm`
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
         const success = await megaCmd.rm(remotepath, inputOptions)
-        return success ? '' : megaCmd.getCmdOutput('stdout')
+        return { state: success, error:  success ? '' : megaCmd.getCmdOutput('stdout') }
+    }
+
+    static isLockAndLoginOk(lockAndLogin:StorageMegaLockAndLogin) {
+        return ['newly locked', 'already locked'].indexOf(lockAndLogin) !== -1
+    }
+
+    static errorResponseForLockAndLogin(lockAndLogin:StorageMegaLockAndLogin) {
+        return {
+            state: 'error' as 'success' | 'error',
+            error: lockAndLogin
+        }
     }
 }
