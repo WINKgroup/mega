@@ -24,6 +24,7 @@ export default class MegaCmd {
     protected constructor(inputOptions?: Partial<MegaCmdOptions>);
     protected run(cmd: string, inputCmdOptions?: Partial<CmdOptions>): Promise<Cmd>;
     getCmdOutput(stream?: "stdout" | "stderr"): string;
+    getCmdExitCode(): number | null;
     whoAmI(): Promise<string | null>;
     login(email: string, password: string): Promise<boolean>;
     logout(): Promise<void>;
@@ -47,10 +48,11 @@ export default class MegaCmd {
         type: string;
         url: string;
     } | null>;
-    static setProxy(type: 'none' | 'auto' | string): Promise<void>;
+    static setProxy(type: 'none' | 'auto' | string): Promise<string>;
     static startup(): Promise<boolean>;
     static get(lockedBy?: string): Promise<MegaCmd | null>;
     static unlock(lockedBy: string): boolean;
     static getOrWait(lockedBy?: string, timeoutInSeconds?: number): Promise<MegaCmd | null>;
     static getNameFromPath(path: string): string;
+    static concatPaths(path1: string, path2: string): string;
 }

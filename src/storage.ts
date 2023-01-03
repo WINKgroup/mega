@@ -1,4 +1,4 @@
-import ConsoleLog from "@winkgroup/console-log"
+import ConsoleLog, { LogLevel } from "@winkgroup/console-log"
 import { byteString } from "@winkgroup/misc"
 import fs from 'fs'
 import _ from "lodash"
@@ -46,7 +46,7 @@ export default class StorageMega {
             if (typeof this.timeoutInSecondsToGetMegaCmd !== 'undefined') this.megaCmd = await MegaCmd.getOrWait(lockingString, this.timeoutInSecondsToGetMegaCmd)
                 else this.megaCmd = await MegaCmd.get(lockingString)
             if (!this.megaCmd) {
-                if (this.timeoutInSecondsToGetMegaCmd !== 0) this.consoleLog.warn(`timeout or fail in getOrWait with lockingString "${ lockingString }"`)
+                if (this.timeoutInSecondsToGetMegaCmd !== 0) this.consoleLog.warn(`timeout or fail in getOrWait with lockingString "${ lockingString }" ( currently locked by ${ MegaCmd.getLockedBy() } )`)
                     else this.consoleLog.debug(`megaCmd not available for lockingString "${ lockingString }"`)
                 return 'unable to lock'
             }
@@ -72,7 +72,10 @@ export default class StorageMega {
         if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
         const megaCmd = this.megaCmd!
         
+        const previousMegaCmdConsoleLog = megaCmd.consoleLog.spawn()
+        if (options.noLogs) megaCmd.consoleLog.generalOptions.verbosity = LogLevel.WARN
         const result = await megaCmd.df()
+        megaCmd.consoleLog = previousMegaCmdConsoleLog
         this.unlockEventually(lockingString, lockResult)
 
         if (!result) return { state: 'error', error: 'unable to df / parsing error' }
@@ -133,7 +136,7 @@ export default class StorageMega {
         const lockResult = await this.getMegaCmdAndLogin(lockingString)
         if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
         const megaCmd = this.megaCmd!
-        let responseState = 'success'
+        let responseState = 'success' as 'success' | 'error'
         const result:StorageMegaTransferResult = {
             direction: 'upload',
             totalBytes: 0,
@@ -167,13 +170,17 @@ export default class StorageMega {
             }
         }
 
-        const dfResult = await this.df()
+        const dfResult = await this.df({ noLogs: true })
         if (dfResult.error) return setError(dfResult.error)
         if (dfResult.result!.freeBytes <= filesToUpload.totalBytes) return setError('not enough space')
 
         // go!
         const cmdResult = await megaCmd.put(localpath, remotepath, options)
-        if (!cmdResult) return setError('error in megaCmd upload')
+        if (!cmdResult) {
+            let error = 'error in megaCmd upload'
+            if (megaCmd.getCmdExitCode() === 13) error = 'upload stopped'
+             return setError(error)
+        }
         
         // check
         for(const fileTransferExpected of filesToUpload.transfers) {
@@ -203,7 +210,7 @@ export default class StorageMega {
         }
 
         this.unlockEventually(lockingString, lockResult)
-        return { state: 'success', result: result}
+        return { state: responseState, result: result }
     }
 
     async rm(remotepath:string, inputOptions?:Partial<MegaCmdRmOptions>) {

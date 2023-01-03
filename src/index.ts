@@ -53,6 +53,11 @@ export default class MegaCmd {
         return stream === 'stdout' ? cmd.stdout.data : cmd.stderr.data
     }
 
+    getCmdExitCode() {
+        if (!this.runningCmd) return null
+        return this.runningCmd.exitCode
+    }
+
     async whoAmI() {
         await this.run('mega-whoami', { consoleLogGeneralOptions: { verbosity: LogLevel.NONE } })
         let result = this.getCmdOutput()
@@ -351,21 +356,27 @@ export default class MegaCmd {
 
         const list = glob.sync(localpath, { dot: true })
         const workingDir = process.cwd()
-        const absRemotePath =  await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)
-        if (absRemotePath === false) return false
+        const remotepathType = await this.getRemotePathType(remotepath)
+        if (remotepathType === false) {
+            this.consoleLog.error('unable to get remote path type in put2transfers')
+            return false
+        }
+        const remoteBasePath = await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)
+        if (remoteBasePath === false) {
+            this.consoleLog.error('unable to get remote base path')
+            return false
+        }
 
-        const addTransferToResult = (localFilename:string, stats?:fs.Stats) => {
-            if (!stats) stats = fs.statSync(localFilename, {throwIfNoEntry: false})
-            if (!stats) {
-                this.consoleLog.error(`no stats for "${ localFilename }" on put2transfers`)
-                return false
-            }
-
-            const destinationPath = absRemotePath[absRemotePath.length - 1] !== '/' ? absRemotePath + '/' + localFilename : absRemotePath + localFilename
+        const addTransferToResult = (localpath:string, stats?:fs.Stats) => {
+            if (!stats) stats = fs.statSync(localpath)
+            const absLocalPath = Path.resolve(workingDir, localpath)
+            const localFilename = Path.basename(absLocalPath)
+            let absRemotePath = remoteBasePath
+            if (remotepathType === 'directory') absRemotePath += localFilename
             const transfer:MegaTransferFile = {
                 direction: 'upload',
-                sourcePath: Path.join(workingDir, localFilename),
-                destinationPath: destinationPath,
+                sourcePath: absLocalPath,
+                destinationPath: absRemotePath,
                 bytes: stats.size
             }
 
@@ -374,18 +385,13 @@ export default class MegaCmd {
             return true
         }
 
-        for (const filename of list) {
-            const stats = fs.statSync(filename, {throwIfNoEntry: false})
-            if (stats) {
-                if (stats.isDirectory()) {
-                    const subList = glob.sync(Path.join(filename, '**/*'), { dot: true, nodir: true })
-                    for(const subFilename of subList) addTransferToResult(subFilename)
-                }
-                    else addTransferToResult(filename, stats)
-            } else {
-                this.consoleLog.error(`no stats for "${ filename }" on put2transfers`)
-                return false
+        for (const localpath of list) {
+            const stats = fs.statSync(localpath)
+            if (stats.isDirectory()) {
+                const subList = glob.sync(Path.join(localpath, '**/*'), { dot: true, nodir: true })
+                for(const subFilename of subList) addTransferToResult(subFilename)
             }
+                else addTransferToResult(localpath, stats)
         }
 
         return result
@@ -440,6 +446,8 @@ export default class MegaCmd {
         cmd.stderr.logLevel = LogLevel.DEBUG
         const onProgress = inputOptions
         const mega = this
+        let started = false
+        let progressData = { bytes: 0, totalBytes: 0, percentage: 0 }
 
         function transferringParser(text:string) {
             const parsed = text.match(/\((\d+)\/(\d+)\s+([^:]+):\s+([0-9.]+)\s+%\)/)
@@ -470,15 +478,25 @@ export default class MegaCmd {
                 const text = data.toString()
                 if (text.indexOf('TRANSFERRING') !== -1) {
                     const info = transferringParser(text)
-                    if (info) onProgress!.emit('progress', info)
+                    if (info) {
+                        progressData = info
+                        if (!started) {
+                            started = true
+                            onProgress!.emit('started', { totalBytes: info.totalBytes })
+                        }
+                        onProgress!.emit('progress', info)
+                    }
                 }
             }
         }
 
-        function transferErrorMessage(action:string, tag?:number) {
+        function transferActionMessage(action:string, success:boolean, tag?:number) {
             const secondPart = tag ? `transfer with tag ${ tag }` : 'all transfers'
-            const err = `unable to ${ action} ` + secondPart
-            mega.consoleLog.warn(err)
+            if (success) mega.consoleLog.print(`${ secondPart }: ${ action } success`)
+            else {
+                const err = `unable to ${ action} ` + secondPart
+                mega.consoleLog.warn(err)
+            }
         }
 
         return new Promise<void>( async resolve => {
@@ -492,12 +510,27 @@ export default class MegaCmd {
                     
                     cmd.stderr.addListener('data', listener)
 
-                    onProgress.on('stop', async (tag?:number) => { if (!await this.cancelTransfers(tag)) transferErrorMessage('stop', tag)})
-                    onProgress.on('resume', async (tag?:number) => { if (!await this.resumeTransfers(tag)) transferErrorMessage('resume', tag)})
-                    onProgress.on('pause', async (tag?:number) => { if (!await this.pauseTransfers(tag)) transferErrorMessage('pause', tag)})
+                    onProgress.on('stop', async (tag?:number) => {
+                        const result = await this.cancelTransfers(tag)
+                        transferActionMessage('stop', result, tag)
+                        onProgress.emit('stopped', { result: result })
+                    })
+                    onProgress.on('resume', async (tag?:number) => {
+                        const result = await this.resumeTransfers(tag)
+                        transferActionMessage('resume', result, tag)
+                        onProgress.emit('resumed', { result: result })
+                    })
+                    onProgress.on('pause', async (tag?:number) => {
+                        const result = await this.pauseTransfers(tag)
+                        transferActionMessage('pause', result, tag)
+                        onProgress.emit('paused', { result: result })
+                    })
                 }
                 childProcess.on('close', () => {
-                    if (onProgress) cmd.stderr.removeListener('data', listener)
+                    if (onProgress) {
+                        onProgress.emit('ended', progressData)
+                        cmd.stderr.removeListener('data', listener)
+                    }
                     resolve()
                 })
             }
@@ -545,10 +578,6 @@ export default class MegaCmd {
 
             // fifth field: percentage
             const percentage = parseFloat(fields[4])
-            if (percentage === 0) {
-                this.consoleLog.error(`unrecognized "${ fields[4] }" percentage in transfer command`)
-                return false
-            }
 
             // bytes
             let totalBytes = parseFloat(fields[6])
@@ -617,7 +646,7 @@ export default class MegaCmd {
 
     static async getProxy() {
         const mega = new MegaCmd()
-        const output = (await mega.run('mega-proxy')).stdout.data
+        const output = (await mega.run('mega-proxy', { consoleLogGeneralOptions: { verbosity: LogLevel.WARN } })).stdout.data
         if (output.indexOf('Proxy disabled') !== -1) return null
 
         const lines = output.split("\n")
@@ -647,10 +676,10 @@ export default class MegaCmd {
         })
 
         const proxyInfo = await this.getProxy()
-        if (!proxyInfo && type === 'none') return
-        if (type === 'auto' && proxyInfo!.type === "AUTO") return
-        if (proxyInfo!.type === "CUSTOM") return
-        throw new Error('unable to properly set proxy')
+        if (!proxyInfo && type === 'none') return ''
+        if (type === 'auto' && proxyInfo!.type === "AUTO") return ''
+        if (proxyInfo!.type === "CUSTOM") return ''
+        throw 'unable to properly set proxy'
     }
 
     static async startup() {
@@ -755,5 +784,10 @@ export default class MegaCmd {
     static getNameFromPath(path:string) {
         const lastSlash = path.lastIndexOf('/')
         return lastSlash !== -1 ? path.substring(lastSlash + 1) : path
+    }
+
+    static concatPaths(path1:string, path2:string) {
+        if (path1[path1.length - 1] === '/' || path2[0] === '/') return path1 + path2
+        return path1 + '/' + path2
     }
 }

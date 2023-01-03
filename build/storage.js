@@ -1,4 +1,27 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -39,7 +62,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-var console_log_1 = __importDefault(require("@winkgroup/console-log"));
+var console_log_1 = __importStar(require("@winkgroup/console-log"));
 var misc_1 = require("@winkgroup/misc");
 var fs_1 = __importDefault(require("fs"));
 var lodash_1 = __importDefault(require("lodash"));
@@ -77,7 +100,7 @@ var StorageMega = /** @class */ (function () {
                     case 4:
                         if (!this.megaCmd) {
                             if (this.timeoutInSecondsToGetMegaCmd !== 0)
-                                this.consoleLog.warn("timeout or fail in getOrWait with lockingString \"".concat(lockingString, "\""));
+                                this.consoleLog.warn("timeout or fail in getOrWait with lockingString \"".concat(lockingString, "\" ( currently locked by ").concat(_1.default.getLockedBy(), " )"));
                             else
                                 this.consoleLog.debug("megaCmd not available for lockingString \"".concat(lockingString, "\""));
                             return [2 /*return*/, 'unable to lock'];
@@ -101,7 +124,7 @@ var StorageMega = /** @class */ (function () {
     };
     StorageMega.prototype.df = function (inputOptions) {
         return __awaiter(this, void 0, void 0, function () {
-            var options, lockingString, lockResult, megaCmd, result;
+            var options, lockingString, lockResult, megaCmd, previousMegaCmdConsoleLog, result;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -113,9 +136,13 @@ var StorageMega = /** @class */ (function () {
                         if (!StorageMega.isLockAndLoginOk(lockResult))
                             return [2 /*return*/, StorageMega.errorResponseForLockAndLogin(lockResult)];
                         megaCmd = this.megaCmd;
+                        previousMegaCmdConsoleLog = megaCmd.consoleLog.spawn();
+                        if (options.noLogs)
+                            megaCmd.consoleLog.generalOptions.verbosity = console_log_1.LogLevel.WARN;
                         return [4 /*yield*/, megaCmd.df()];
                     case 2:
                         result = _a.sent();
+                        megaCmd.consoleLog = previousMegaCmdConsoleLog;
                         this.unlockEventually(lockingString, lockResult);
                         if (!result)
                             return [2 /*return*/, { state: 'error', error: 'unable to df / parsing error' }];
@@ -206,7 +233,7 @@ var StorageMega = /** @class */ (function () {
     StorageMega.prototype.upload = function (localpath, remotepath, inputOptions) {
         if (remotepath === void 0) { remotepath = ''; }
         return __awaiter(this, void 0, void 0, function () {
-            var options, lockingString, lockResult, megaCmd, responseState, result, setError, filesToUpload, remotepath_1, fileTypeResponse, error, dfResult, cmdResult, _i, _a, fileTransferExpected, localBytes, isFileOkResponse, isFileOkResult, transferResult, transferStr;
+            var options, lockingString, lockResult, megaCmd, responseState, result, setError, filesToUpload, remotepath_1, fileTypeResponse, error, dfResult, cmdResult, error, _i, _a, fileTransferExpected, localBytes, isFileOkResponse, isFileOkResult, transferResult, transferStr;
             var _this = this;
             return __generator(this, function (_b) {
                 switch (_b.label) {
@@ -255,7 +282,7 @@ var StorageMega = /** @class */ (function () {
                         if (error)
                             return [2 /*return*/, setError(error)];
                         _b.label = 5;
-                    case 5: return [4 /*yield*/, this.df()];
+                    case 5: return [4 /*yield*/, this.df({ noLogs: true })];
                     case 6:
                         dfResult = _b.sent();
                         if (dfResult.error)
@@ -267,10 +294,12 @@ var StorageMega = /** @class */ (function () {
                         return [4 /*yield*/, megaCmd.put(localpath, remotepath, options)];
                     case 7:
                         cmdResult = _b.sent();
-                        if (!cmdResult)
-                            return [2 /*return*/, setError('error in megaCmd upload')
-                                // check
-                            ];
+                        if (!cmdResult) {
+                            error = 'error in megaCmd upload';
+                            if (megaCmd.getCmdExitCode() === 13)
+                                error = 'upload stopped';
+                            return [2 /*return*/, setError(error)];
+                        }
                         _i = 0, _a = filesToUpload.transfers;
                         _b.label = 8;
                     case 8:
@@ -307,7 +336,7 @@ var StorageMega = /** @class */ (function () {
                         return [3 /*break*/, 8];
                     case 11:
                         this.unlockEventually(lockingString, lockResult);
-                        return [2 /*return*/, { state: 'success', result: result }];
+                        return [2 /*return*/, { state: responseState, result: result }];
                 }
             });
         });

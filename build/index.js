@@ -102,6 +102,11 @@ var MegaCmd = /** @class */ (function () {
         var cmd = this.runningCmd;
         return stream === 'stdout' ? cmd.stdout.data : cmd.stderr.data;
     };
+    MegaCmd.prototype.getCmdExitCode = function () {
+        if (!this.runningCmd)
+            return null;
+        return this.runningCmd.exitCode;
+    };
     MegaCmd.prototype.whoAmI = function () {
         return __awaiter(this, void 0, void 0, function () {
             var result, message;
@@ -480,8 +485,7 @@ var MegaCmd = /** @class */ (function () {
     MegaCmd.prototype.put2transfers = function (localpath, remotepath) {
         if (remotepath === void 0) { remotepath = ''; }
         return __awaiter(this, void 0, void 0, function () {
-            var result, _i, localpath_1, localpathEl, resultEl, list, workingDir, absRemotePath, addTransferToResult, _a, list_1, filename, stats, subList, _b, subList_1, subFilename;
-            var _this = this;
+            var result, _i, localpath_1, localpathEl, resultEl, list, workingDir, remotepathType, remoteBasePath, addTransferToResult, _a, list_1, localpath_2, stats, subList, _b, subList_1, subFilename;
             return __generator(this, function (_c) {
                 switch (_c.label) {
                     case 0:
@@ -510,23 +514,32 @@ var MegaCmd = /** @class */ (function () {
                     case 5:
                         list = glob_1.default.sync(localpath, { dot: true });
                         workingDir = process.cwd();
-                        return [4 /*yield*/, this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)];
+                        return [4 /*yield*/, this.getRemotePathType(remotepath)];
                     case 6:
-                        absRemotePath = _c.sent();
-                        if (absRemotePath === false)
+                        remotepathType = _c.sent();
+                        if (remotepathType === false) {
+                            this.consoleLog.error('unable to get remote path type in put2transfers');
                             return [2 /*return*/, false];
-                        addTransferToResult = function (localFilename, stats) {
+                        }
+                        return [4 /*yield*/, this.getRemoteAbsolutePathWithCurrentWorkingDirectory(remotepath)];
+                    case 7:
+                        remoteBasePath = _c.sent();
+                        if (remoteBasePath === false) {
+                            this.consoleLog.error('unable to get remote base path');
+                            return [2 /*return*/, false];
+                        }
+                        addTransferToResult = function (localpath, stats) {
                             if (!stats)
-                                stats = fs_1.default.statSync(localFilename, { throwIfNoEntry: false });
-                            if (!stats) {
-                                _this.consoleLog.error("no stats for \"".concat(localFilename, "\" on put2transfers"));
-                                return false;
-                            }
-                            var destinationPath = absRemotePath[absRemotePath.length - 1] !== '/' ? absRemotePath + '/' + localFilename : absRemotePath + localFilename;
+                                stats = fs_1.default.statSync(localpath);
+                            var absLocalPath = path_1.default.resolve(workingDir, localpath);
+                            var localFilename = path_1.default.basename(absLocalPath);
+                            var absRemotePath = remoteBasePath;
+                            if (remotepathType === 'directory')
+                                absRemotePath += localFilename;
                             var transfer = {
                                 direction: 'upload',
-                                sourcePath: path_1.default.join(workingDir, localFilename),
-                                destinationPath: destinationPath,
+                                sourcePath: absLocalPath,
+                                destinationPath: absRemotePath,
                                 bytes: stats.size
                             };
                             result.totalBytes += stats.size;
@@ -534,23 +547,17 @@ var MegaCmd = /** @class */ (function () {
                             return true;
                         };
                         for (_a = 0, list_1 = list; _a < list_1.length; _a++) {
-                            filename = list_1[_a];
-                            stats = fs_1.default.statSync(filename, { throwIfNoEntry: false });
-                            if (stats) {
-                                if (stats.isDirectory()) {
-                                    subList = glob_1.default.sync(path_1.default.join(filename, '**/*'), { dot: true, nodir: true });
-                                    for (_b = 0, subList_1 = subList; _b < subList_1.length; _b++) {
-                                        subFilename = subList_1[_b];
-                                        addTransferToResult(subFilename);
-                                    }
+                            localpath_2 = list_1[_a];
+                            stats = fs_1.default.statSync(localpath_2);
+                            if (stats.isDirectory()) {
+                                subList = glob_1.default.sync(path_1.default.join(localpath_2, '**/*'), { dot: true, nodir: true });
+                                for (_b = 0, subList_1 = subList; _b < subList_1.length; _b++) {
+                                    subFilename = subList_1[_b];
+                                    addTransferToResult(subFilename);
                                 }
-                                else
-                                    addTransferToResult(filename, stats);
                             }
-                            else {
-                                this.consoleLog.error("no stats for \"".concat(filename, "\" on put2transfers"));
-                                return [2 /*return*/, false];
-                            }
+                            else
+                                addTransferToResult(localpath_2, stats);
                         }
                         return [2 /*return*/, result];
                 }
@@ -658,23 +665,35 @@ var MegaCmd = /** @class */ (function () {
                     var text = data.toString();
                     if (text.indexOf('TRANSFERRING') !== -1) {
                         var info = transferringParser(text);
-                        if (info)
+                        if (info) {
+                            progressData = info;
+                            if (!started) {
+                                started = true;
+                                onProgress.emit('started', { totalBytes: info.totalBytes });
+                            }
                             onProgress.emit('progress', info);
+                        }
                     }
                 }
             }
-            function transferErrorMessage(action, tag) {
+            function transferActionMessage(action, success, tag) {
                 var secondPart = tag ? "transfer with tag ".concat(tag) : 'all transfers';
-                var err = "unable to ".concat(action, " ") + secondPart;
-                mega.consoleLog.warn(err);
+                if (success)
+                    mega.consoleLog.print("".concat(secondPart, ": ").concat(action, " success"));
+                else {
+                    var err = "unable to ".concat(action, " ") + secondPart;
+                    mega.consoleLog.warn(err);
+                }
             }
-            var onProgress, mega;
+            var onProgress, mega, started, progressData;
             var _this = this;
             return __generator(this, function (_a) {
                 cmd.consoleLog = this.consoleLog.spawn();
                 cmd.stderr.logLevel = console_log_1.LogLevel.DEBUG;
                 onProgress = inputOptions;
                 mega = this;
+                started = false;
+                progressData = { bytes: 0, totalBytes: 0, percentage: 0 };
                 return [2 /*return*/, new Promise(function (resolve) { return __awaiter(_this, void 0, void 0, function () {
                         var childProcess, transfers;
                         var _this = this;
@@ -692,38 +711,52 @@ var MegaCmd = /** @class */ (function () {
                                     else
                                         mega.consoleLog.warn('unable to get transfers during progress');
                                     cmd.stderr.addListener('data', listener);
-                                    onProgress.on('stop', function (tag) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0: return [4 /*yield*/, this.cancelTransfers(tag)];
-                                            case 1:
-                                                if (!(_a.sent()))
-                                                    transferErrorMessage('stop', tag);
-                                                return [2 /*return*/];
-                                        }
-                                    }); }); });
-                                    onProgress.on('resume', function (tag) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0: return [4 /*yield*/, this.resumeTransfers(tag)];
-                                            case 1:
-                                                if (!(_a.sent()))
-                                                    transferErrorMessage('resume', tag);
-                                                return [2 /*return*/];
-                                        }
-                                    }); }); });
-                                    onProgress.on('pause', function (tag) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0: return [4 /*yield*/, this.pauseTransfers(tag)];
-                                            case 1:
-                                                if (!(_a.sent()))
-                                                    transferErrorMessage('pause', tag);
-                                                return [2 /*return*/];
-                                        }
-                                    }); }); });
+                                    onProgress.on('stop', function (tag) { return __awaiter(_this, void 0, void 0, function () {
+                                        var result;
+                                        return __generator(this, function (_a) {
+                                            switch (_a.label) {
+                                                case 0: return [4 /*yield*/, this.cancelTransfers(tag)];
+                                                case 1:
+                                                    result = _a.sent();
+                                                    transferActionMessage('stop', result, tag);
+                                                    onProgress.emit('stopped', { result: result });
+                                                    return [2 /*return*/];
+                                            }
+                                        });
+                                    }); });
+                                    onProgress.on('resume', function (tag) { return __awaiter(_this, void 0, void 0, function () {
+                                        var result;
+                                        return __generator(this, function (_a) {
+                                            switch (_a.label) {
+                                                case 0: return [4 /*yield*/, this.resumeTransfers(tag)];
+                                                case 1:
+                                                    result = _a.sent();
+                                                    transferActionMessage('resume', result, tag);
+                                                    onProgress.emit('resumed', { result: result });
+                                                    return [2 /*return*/];
+                                            }
+                                        });
+                                    }); });
+                                    onProgress.on('pause', function (tag) { return __awaiter(_this, void 0, void 0, function () {
+                                        var result;
+                                        return __generator(this, function (_a) {
+                                            switch (_a.label) {
+                                                case 0: return [4 /*yield*/, this.pauseTransfers(tag)];
+                                                case 1:
+                                                    result = _a.sent();
+                                                    transferActionMessage('pause', result, tag);
+                                                    onProgress.emit('paused', { result: result });
+                                                    return [2 /*return*/];
+                                            }
+                                        });
+                                    }); });
                                     _a.label = 2;
                                 case 2:
                                     childProcess.on('close', function () {
-                                        if (onProgress)
+                                        if (onProgress) {
+                                            onProgress.emit('ended', progressData);
                                             cmd.stderr.removeListener('data', listener);
+                                        }
                                         resolve();
                                     });
                                     return [3 /*break*/, 4];
@@ -785,10 +818,6 @@ var MegaCmd = /** @class */ (function () {
                                 return [2 /*return*/, false];
                             }
                             percentage = parseFloat(fields[4]);
-                            if (percentage === 0) {
-                                this.consoleLog.error("unrecognized \"".concat(fields[4], "\" percentage in transfer command"));
-                                return [2 /*return*/, false];
-                            }
                             totalBytes = parseFloat(fields[6]);
                             switch (fields[7]) {
                                 case 'KB':
@@ -895,7 +924,7 @@ var MegaCmd = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         mega = new MegaCmd();
-                        return [4 /*yield*/, mega.run('mega-proxy')];
+                        return [4 /*yield*/, mega.run('mega-proxy', { consoleLogGeneralOptions: { verbosity: console_log_1.LogLevel.WARN } })];
                     case 1:
                         output = (_a.sent()).stdout.data;
                         if (output.indexOf('Proxy disabled') !== -1)
@@ -944,12 +973,12 @@ var MegaCmd = /** @class */ (function () {
                     case 2:
                         proxyInfo = _a.sent();
                         if (!proxyInfo && type === 'none')
-                            return [2 /*return*/];
+                            return [2 /*return*/, ''];
                         if (type === 'auto' && proxyInfo.type === "AUTO")
-                            return [2 /*return*/];
+                            return [2 /*return*/, ''];
                         if (proxyInfo.type === "CUSTOM")
-                            return [2 /*return*/];
-                        throw new Error('unable to properly set proxy');
+                            return [2 /*return*/, ''];
+                        throw 'unable to properly set proxy';
                 }
             });
         });
@@ -1101,6 +1130,11 @@ var MegaCmd = /** @class */ (function () {
     MegaCmd.getNameFromPath = function (path) {
         var lastSlash = path.lastIndexOf('/');
         return lastSlash !== -1 ? path.substring(lastSlash + 1) : path;
+    };
+    MegaCmd.concatPaths = function (path1, path2) {
+        if (path1[path1.length - 1] === '/' || path2[0] === '/')
+            return path1 + path2;
+        return path1 + '/' + path2;
     };
     MegaCmd.started = false;
     MegaCmd.lockedBy = '';
