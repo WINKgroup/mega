@@ -1,6 +1,6 @@
 import ConsoleLog from "@winkgroup/console-log";
 import MegaCmd, { MegaCmdPutOptions } from ".";
-import { MegaCmdDfResult, MegaCmdFile, MegaCmdFileType, MegaCmdLsOptions, MegaCmdRmOptions, StorageMegaIsFileOkOptions, StorageMegaIsFileOkResult, StorageMegaMethodResponse, StorageMegaTransferResult } from "./common";
+import { MegaCmdDfResult, MegaCmdFile, MegaCmdFileType, MegaCmdLsOptions, MegaCmdRmOptions, MegaTransferResult, StorageMegaIsFileOkOptions, StorageMegaIsFileOkResult, StorageMegaMethodResponse, StorageMegaTransferResult } from "./common";
 export interface StorageMegaInput {
     email: string;
     password: string;
@@ -11,6 +11,7 @@ export interface StorageMegaInput {
 export interface StorageMegaUploadOptions extends MegaCmdPutOptions {
     allowOverwrite: boolean;
     deleteOriginal: boolean;
+    transfers: MegaTransferResult;
 }
 export interface StorageMegaDfOptions {
     noLogs: boolean;

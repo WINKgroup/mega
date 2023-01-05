@@ -233,16 +233,16 @@ var StorageMega = /** @class */ (function () {
     StorageMega.prototype.upload = function (localpath, remotepath, inputOptions) {
         if (remotepath === void 0) { remotepath = ''; }
         return __awaiter(this, void 0, void 0, function () {
-            var options, lockingString, lockResult, megaCmd, responseState, result, setError, filesToUpload, remotepath_1, fileTypeResponse, error, dfResult, cmdResult, error, _i, _a, fileTransferExpected, localBytes, isFileOkResponse, isFileOkResult, transferResult, transferStr;
+            var options, lockingString, lockResult, megaCmd, responseState, result, setError, filesToUpload, _a, remotepath_1, fileTypeResponse, error, dfResult, cmdResult, error, _i, _b, fileTransferExpected, localBytes, isFileOkResponse, isFileOkResult, transferResult, transferStr;
             var _this = this;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
+            return __generator(this, function (_c) {
+                switch (_c.label) {
                     case 0:
                         options = lodash_1.default.defaults(inputOptions, { allowOverwrite: false, deleteOriginal: false });
                         lockingString = "storage ".concat(this.email, " upload");
                         return [4 /*yield*/, this.getMegaCmdAndLogin(lockingString)];
                     case 1:
-                        lockResult = _b.sent();
+                        lockResult = _c.sent();
                         if (!StorageMega.isLockAndLoginOk(lockResult))
                             return [2 /*return*/, StorageMega.errorResponseForLockAndLogin(lockResult)];
                         megaCmd = this.megaCmd;
@@ -256,24 +256,30 @@ var StorageMega = /** @class */ (function () {
                             _this.unlockEventually(lockingString, lockResult);
                             return { state: 'error', error: error };
                         };
-                        return [4 /*yield*/, megaCmd.put2transfers(localpath, remotepath)];
-                    case 2:
-                        filesToUpload = _b.sent();
+                        if (!options.transfers) return [3 /*break*/, 2];
+                        _a = options.transfers;
+                        return [3 /*break*/, 4];
+                    case 2: return [4 /*yield*/, megaCmd.put2transfers(localpath, remotepath)];
+                    case 3:
+                        _a = _c.sent();
+                        _c.label = 4;
+                    case 4:
+                        filesToUpload = _a;
                         if (!filesToUpload)
                             return [2 /*return*/, setError('unable to determinate transfers during upload')];
                         if (filesToUpload.transfers.length === 0) {
                             this.unlockEventually(lockingString, lockResult);
                             return [2 /*return*/, { state: 'success', result: result }];
                         }
-                        if (!!options.allowOverwrite) return [3 /*break*/, 5];
-                        if (!(filesToUpload.transfers.length > 1)) return [3 /*break*/, 3];
+                        if (!!options.allowOverwrite) return [3 /*break*/, 7];
+                        if (!(filesToUpload.transfers.length > 1)) return [3 /*break*/, 5];
                         // TODO
                         throw new Error('allowOverwrite on multiple files not implemented: should match ls with list of transfers');
-                    case 3:
+                    case 5:
                         remotepath_1 = filesToUpload.transfers[0].destinationPath;
                         return [4 /*yield*/, this.getPathType(remotepath_1)];
-                    case 4:
-                        fileTypeResponse = _b.sent();
+                    case 6:
+                        fileTypeResponse = _c.sent();
                         error = '';
                         if (fileTypeResponse.state === 'error')
                             error = fileTypeResponse.error;
@@ -281,10 +287,10 @@ var StorageMega = /** @class */ (function () {
                             error = "overwriting \"".concat(remotepath_1, "\" not allowed");
                         if (error)
                             return [2 /*return*/, setError(error)];
-                        _b.label = 5;
-                    case 5: return [4 /*yield*/, this.df({ noLogs: true })];
-                    case 6:
-                        dfResult = _b.sent();
+                        _c.label = 7;
+                    case 7: return [4 /*yield*/, this.df({ noLogs: true })];
+                    case 8:
+                        dfResult = _c.sent();
                         if (dfResult.error)
                             return [2 /*return*/, setError(dfResult.error)];
                         if (dfResult.result.freeBytes <= filesToUpload.totalBytes)
@@ -292,23 +298,23 @@ var StorageMega = /** @class */ (function () {
                                 // go!
                             ];
                         return [4 /*yield*/, megaCmd.put(localpath, remotepath, options)];
-                    case 7:
-                        cmdResult = _b.sent();
+                    case 9:
+                        cmdResult = _c.sent();
                         if (!cmdResult) {
                             error = 'error in megaCmd upload';
                             if (megaCmd.getCmdExitCode() === 13)
                                 error = 'upload stopped';
                             return [2 /*return*/, setError(error)];
                         }
-                        _i = 0, _a = filesToUpload.transfers;
-                        _b.label = 8;
-                    case 8:
-                        if (!(_i < _a.length)) return [3 /*break*/, 11];
-                        fileTransferExpected = _a[_i];
+                        _i = 0, _b = filesToUpload.transfers;
+                        _c.label = 10;
+                    case 10:
+                        if (!(_i < _b.length)) return [3 /*break*/, 13];
+                        fileTransferExpected = _b[_i];
                         localBytes = fileTransferExpected.bytes;
                         return [4 /*yield*/, this.isFileOk(fileTransferExpected.destinationPath, localBytes)];
-                    case 9:
-                        isFileOkResponse = _b.sent();
+                    case 11:
+                        isFileOkResponse = _c.sent();
                         if (isFileOkResponse.state === 'error')
                             return [2 /*return*/, setError(isFileOkResponse.error)];
                         isFileOkResult = isFileOkResponse.result;
@@ -330,11 +336,11 @@ var StorageMega = /** @class */ (function () {
                             this.consoleLog.debug(transferStr + ": ok!");
                         if (options.deleteOriginal && isFileOkResult.isOk)
                             fs_1.default.unlinkSync(fileTransferExpected.sourcePath);
-                        _b.label = 10;
-                    case 10:
+                        _c.label = 12;
+                    case 12:
                         _i++;
-                        return [3 /*break*/, 8];
-                    case 11:
+                        return [3 /*break*/, 10];
+                    case 13:
                         this.unlockEventually(lockingString, lockResult);
                         return [2 /*return*/, { state: responseState, result: result }];
                 }

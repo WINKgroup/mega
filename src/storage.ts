@@ -3,7 +3,7 @@ import { byteString } from "@winkgroup/misc"
 import fs from 'fs'
 import _ from "lodash"
 import MegaCmd, { MegaCmdPutOptions } from "."
-import { MegaCmdDfResult, MegaCmdFile, MegaCmdFileType, MegaCmdLsOptions, MegaCmdLsResult, MegaCmdRmOptions, StorageMegaIsFileOkOptions, StorageMegaIsFileOkResult, StorageMegaMethodResponse, StorageMegaTransferFile, StorageMegaTransferResult } from "./common"
+import { MegaCmdDfResult, MegaCmdFile, MegaCmdFileType, MegaCmdLsOptions, MegaCmdLsResult, MegaCmdRmOptions, MegaTransferResult, StorageMegaIsFileOkOptions, StorageMegaIsFileOkResult, StorageMegaMethodResponse, StorageMegaTransferFile, StorageMegaTransferResult } from "./common"
 
 export interface StorageMegaInput {
     email: string
@@ -16,6 +16,7 @@ export interface StorageMegaInput {
 export interface StorageMegaUploadOptions extends MegaCmdPutOptions {
     allowOverwrite: boolean
     deleteOriginal: boolean
+    transfers: MegaTransferResult
 }
 
 export interface StorageMegaDfOptions {
@@ -148,7 +149,7 @@ export default class StorageMega {
             return { state: 'error' as "success" | "error", error: error }
         }
 
-        const filesToUpload = await megaCmd.put2transfers(localpath, remotepath)
+        const filesToUpload = options.transfers ? options.transfers : await megaCmd.put2transfers(localpath, remotepath)
         if (!filesToUpload) return setError('unable to determinate transfers during upload')
 
         if (filesToUpload.transfers.length === 0) {
