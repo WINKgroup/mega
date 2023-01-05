@@ -23,7 +23,7 @@ export default class StorageMega {
     megaCmd: MegaCmd | null;
     consoleLog: ConsoleLog;
     constructor(input: StorageMegaInput);
-    protected getMegaCmdAndLogin(lockingString: string): Promise<StorageMegaLockAndLogin>;
+    getMegaCmdAndLogin(lockingString: string): Promise<StorageMegaLockAndLogin>;
     protected unlockEventually(lockingString: string, lockAndLogin: StorageMegaLockAndLogin): void;
     df(inputOptions?: Partial<StorageMegaDfOptions>): Promise<StorageMegaMethodResponse<MegaCmdDfResult>>;
     getPathType(path: string): Promise<StorageMegaMethodResponse<"none" | MegaCmdFileType>>;

@@ -39,7 +39,7 @@ export default class StorageMega {
         if (input.megaCmd) this.megaCmd = input.megaCmd
     }
 
-    protected async getMegaCmdAndLogin(lockingString:string):Promise<StorageMegaLockAndLogin> {
+    async getMegaCmdAndLogin(lockingString:string):Promise<StorageMegaLockAndLogin> {
         const previouslyLocked = !!this.megaCmd
 
         if (!this.megaCmd) {
