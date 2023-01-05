@@ -16,7 +16,7 @@ export interface StorageMegaUploadOptions extends MegaCmdPutOptions {
 export interface StorageMegaDfOptions {
     noLogs: boolean;
 }
-export type StorageMegaLockAndLogin = 'already locked' | 'newly locked' | 'unable to lock' | 'unable to login';
+export type StorageMegaLockAndLogin = 'already locked' | 'newly locked' | 'unable to lock' | 'unable to login' | 'storage error';
 export default class StorageMega {
     email: string;
     password: string;
