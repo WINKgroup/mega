@@ -53,6 +53,7 @@ export default class StorageMega {
             }
         }
 
+        this.megaCmd.consoleLog = this.consoleLog.spawn()
         if (!await this.megaCmd.login(this.email, this.password)) {
             this.consoleLog.warn(`unable to login with lockingString "${ lockingString }"`)
             MegaCmd.unlock(lockingString)
@@ -119,6 +120,7 @@ export default class StorageMega {
     }
 
     async isFileOk(remotepath:string, expectedBytes:number, inputOptions?:Partial<StorageMegaIsFileOkOptions>):Promise< StorageMegaMethodResponse <StorageMegaIsFileOkResult> > {
+        if (!expectedBytes) return { state: 'error', error: 'expectedBytes cannot be 0' }
         const options = _.defaults(inputOptions, {toleranceBytesPercentage: .05})
         const lsResult = await this.ls(remotepath, {recursive: true})
         if (lsResult.state === 'error') return { state: 'error', error: lsResult.error }
@@ -154,6 +156,7 @@ export default class StorageMega {
 
         if (filesToUpload.transfers.length === 0) {
             this.unlockEventually(lockingString, lockResult)
+            this.consoleLog.warn(`no files to upload with localpath: ${ localpath }`)
             return { state: 'success', result: result }
         }
 

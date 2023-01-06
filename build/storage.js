@@ -106,7 +106,9 @@ var StorageMega = /** @class */ (function () {
                             return [2 /*return*/, 'unable to lock'];
                         }
                         _c.label = 5;
-                    case 5: return [4 /*yield*/, this.megaCmd.login(this.email, this.password)];
+                    case 5:
+                        this.megaCmd.consoleLog = this.consoleLog.spawn();
+                        return [4 /*yield*/, this.megaCmd.login(this.email, this.password)];
                     case 6:
                         if (!(_c.sent())) {
                             this.consoleLog.warn("unable to login with lockingString \"".concat(lockingString, "\""));
@@ -211,6 +213,8 @@ var StorageMega = /** @class */ (function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
+                        if (!expectedBytes)
+                            return [2 /*return*/, { state: 'error', error: 'expectedBytes cannot be 0' }];
                         options = lodash_1.default.defaults(inputOptions, { toleranceBytesPercentage: .05 });
                         return [4 /*yield*/, this.ls(remotepath, { recursive: true })];
                     case 1:
@@ -269,6 +273,7 @@ var StorageMega = /** @class */ (function () {
                             return [2 /*return*/, setError('unable to determinate transfers during upload')];
                         if (filesToUpload.transfers.length === 0) {
                             this.unlockEventually(lockingString, lockResult);
+                            this.consoleLog.warn("no files to upload with localpath: ".concat(localpath));
                             return [2 /*return*/, { state: 'success', result: result }];
                         }
                         if (!!options.allowOverwrite) return [3 /*break*/, 7];

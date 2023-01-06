@@ -485,7 +485,7 @@ var MegaCmd = /** @class */ (function () {
     MegaCmd.prototype.put2transfers = function (localpath, remotepath) {
         if (remotepath === void 0) { remotepath = ''; }
         return __awaiter(this, void 0, void 0, function () {
-            var result, _i, localpath_1, localpathEl, resultEl, list, workingDir, remotepathType, remoteBasePath, addTransferToResult, _a, list_1, localpath_2, stats, subList, _b, subList_1, subFilename;
+            var result, _i, localpath_1, localpathEl, resultEl, escapedLocalpath, list, workingDir, remotepathType, remoteBasePath, addTransferToResult, _a, list_1, localpath_2, stats, subList, _b, subList_1, subFilename;
             return __generator(this, function (_c) {
                 switch (_c.label) {
                     case 0:
@@ -512,7 +512,16 @@ var MegaCmd = /** @class */ (function () {
                         return [3 /*break*/, 1];
                     case 4: return [2 /*return*/, result];
                     case 5:
-                        list = glob_1.default.sync(localpath, { dot: true });
+                        escapedLocalpath = localpath;
+                        escapedLocalpath = escapedLocalpath.replace(/\?/, '\\?');
+                        escapedLocalpath = escapedLocalpath.replace(/\!/, '\\!');
+                        escapedLocalpath = escapedLocalpath.replace(/\]/, '\\]');
+                        escapedLocalpath = escapedLocalpath.replace(/\[/, '\\[');
+                        escapedLocalpath = escapedLocalpath.replace(/\(/, '\\(');
+                        escapedLocalpath = escapedLocalpath.replace(/\)/, '\\(');
+                        list = glob_1.default.sync(escapedLocalpath, { dot: true });
+                        if (list.length === 0)
+                            return [2 /*return*/, result];
                         workingDir = process.cwd();
                         return [4 /*yield*/, this.getRemotePathType(remotepath)];
                     case 6:

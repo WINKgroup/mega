@@ -354,7 +354,17 @@ export default class MegaCmd {
             return result
         }
 
-        const list = glob.sync(localpath, { dot: true })
+        let escapedLocalpath = localpath
+        escapedLocalpath = escapedLocalpath.replace(/\?/, '\\?')
+        escapedLocalpath = escapedLocalpath.replace(/\!/, '\\!')
+        escapedLocalpath = escapedLocalpath.replace(/\]/, '\\]')
+        escapedLocalpath = escapedLocalpath.replace(/\[/, '\\[')
+        escapedLocalpath = escapedLocalpath.replace(/\(/, '\\(')
+        escapedLocalpath = escapedLocalpath.replace(/\)/, '\\(')
+
+        const list = glob.sync(escapedLocalpath, { dot: true })
+        if (list.length === 0) return result
+        
         const workingDir = process.cwd()
         const remotepathType = await this.getRemotePathType(remotepath)
         if (remotepathType === false) {
