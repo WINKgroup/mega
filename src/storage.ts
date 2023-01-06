@@ -157,7 +157,7 @@ export default class StorageMega {
         if (filesToUpload.transfers.length === 0) {
             this.unlockEventually(lockingString, lockResult)
             this.consoleLog.warn(`no files to upload with localpath: ${ localpath }`)
-            return { state: 'error', result: result }
+            return setError('no files to upload')
         }
 
         if (!options.allowOverwrite) {

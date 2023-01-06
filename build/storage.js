@@ -274,7 +274,7 @@ var StorageMega = /** @class */ (function () {
                         if (filesToUpload.transfers.length === 0) {
                             this.unlockEventually(lockingString, lockResult);
                             this.consoleLog.warn("no files to upload with localpath: ".concat(localpath));
-                            return [2 /*return*/, { state: 'error', result: result }];
+                            return [2 /*return*/, setError('no files to upload')];
                         }
                         if (!!options.allowOverwrite) return [3 /*break*/, 7];
                         if (!(filesToUpload.transfers.length > 1)) return [3 /*break*/, 5];
