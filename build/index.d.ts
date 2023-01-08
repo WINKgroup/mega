@@ -43,6 +43,8 @@ export default class MegaCmd {
     resumeTransfers(tag?: number): Promise<boolean>;
     cancelTransfers(tag?: number): Promise<boolean>;
     rm(remotepath: string, inputOptions?: Partial<MegaCmdRmOptions>): Promise<boolean>;
+    signup(email: string, password: string): Promise<boolean>;
+    confirm(link: string, email: string, password: string): Promise<boolean>;
     static isIdle(): Promise<boolean>;
     static getProxy(): Promise<{
         type: string;

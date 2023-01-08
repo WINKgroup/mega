@@ -93,7 +93,11 @@ export default class MegaCmd {
     }
 
     async logout () {
-        await this.run('mega-logout', { getResult: false })
+        await this.run('mega-logout', {
+            getResult: false,
+            consoleLogGeneralOptions: { verbosity: LogLevel.NONE }
+        })
+        this.consoleLog.print('logout')
         delete this.consoleLog.generalOptions.id
     }
 
@@ -644,6 +648,44 @@ export default class MegaCmd {
 
         const cmd = await this.run('mega-rm', { args: args })
         return cmd.exitCode === 0
+    }
+
+    async signup(email:string, password:string) {
+        await this.logout()
+        const cmd = await this.run('mega-signup', {
+            args: [email, password],
+            consoleLogGeneralOptions: { verbosity: LogLevel.NONE }
+        })
+        if (cmd.stdout.data.indexOf('Already exists') !== -1) {
+            this.consoleLog.warn(`unable to signup ${ email }: already exists`)
+            return false
+        }
+        if (cmd.stdout.data.indexOf('created succesfully. You will receive a confirmation link') !== -1) {
+            this.consoleLog.print(`${ email } signup success, waiting for confirmation...`)
+            return true
+        }
+        this.consoleLog.error(`unable to parse mega-signup result`)
+        console.error('output:', cmd.stdout.data)
+        console.error('error:', cmd.stderr.data)
+        return false
+    }
+
+    async confirm(link:string, email:string, password:string) {
+        await this.logout()
+        const cmd = await this.run('mega-confirm', {
+            args: [link, email, password],
+            consoleLogGeneralOptions: { verbosity: LogLevel.NONE }
+        })
+
+        if (cmd.stdout.data.indexOf('confirmed succesfully. You can login with it now') !== -1) {
+            this.consoleLog.print(`${ email } account created and confirmed!`)
+            return true
+        }
+
+        this.consoleLog.error(`unable to parse mega-confirm result`)
+        console.error('output:', cmd.stdout.data)
+        console.error('error:', cmd.stderr.data)
+        return false
     }
 
     static async isIdle() {

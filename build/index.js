@@ -172,9 +172,13 @@ var MegaCmd = /** @class */ (function () {
         return __awaiter(this, void 0, void 0, function () {
             return __generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.run('mega-logout', { getResult: false })];
+                    case 0: return [4 /*yield*/, this.run('mega-logout', {
+                            getResult: false,
+                            consoleLogGeneralOptions: { verbosity: console_log_1.LogLevel.NONE }
+                        })];
                     case 1:
                         _a.sent();
+                        this.consoleLog.print('logout');
                         delete this.consoleLog.generalOptions.id;
                         return [2 /*return*/];
                 }
@@ -901,6 +905,62 @@ var MegaCmd = /** @class */ (function () {
                     case 1:
                         cmd = _a.sent();
                         return [2 /*return*/, cmd.exitCode === 0];
+                }
+            });
+        });
+    };
+    MegaCmd.prototype.signup = function (email, password) {
+        return __awaiter(this, void 0, void 0, function () {
+            var cmd;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.logout()];
+                    case 1:
+                        _a.sent();
+                        return [4 /*yield*/, this.run('mega-signup', {
+                                args: [email, password],
+                                consoleLogGeneralOptions: { verbosity: console_log_1.LogLevel.NONE }
+                            })];
+                    case 2:
+                        cmd = _a.sent();
+                        if (cmd.stdout.data.indexOf('Already exists') !== -1) {
+                            this.consoleLog.warn("unable to signup ".concat(email, ": already exists"));
+                            return [2 /*return*/, false];
+                        }
+                        if (cmd.stdout.data.indexOf('created succesfully. You will receive a confirmation link') !== -1) {
+                            this.consoleLog.print("".concat(email, " signup success, waiting for confirmation..."));
+                            return [2 /*return*/, true];
+                        }
+                        this.consoleLog.error("unable to parse mega-signup result");
+                        console.error('output:', cmd.stdout.data);
+                        console.error('error:', cmd.stderr.data);
+                        return [2 /*return*/, false];
+                }
+            });
+        });
+    };
+    MegaCmd.prototype.confirm = function (link, email, password) {
+        return __awaiter(this, void 0, void 0, function () {
+            var cmd;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.logout()];
+                    case 1:
+                        _a.sent();
+                        return [4 /*yield*/, this.run('mega-confirm', {
+                                args: [link, email, password],
+                                consoleLogGeneralOptions: { verbosity: console_log_1.LogLevel.NONE }
+                            })];
+                    case 2:
+                        cmd = _a.sent();
+                        if (cmd.stdout.data.indexOf('confirmed succesfully. You can login with it now') !== -1) {
+                            this.consoleLog.print("".concat(email, " account created and confirmed!"));
+                            return [2 /*return*/, true];
+                        }
+                        this.consoleLog.error("unable to parse mega-confirm result");
+                        console.error('output:', cmd.stdout.data);
+                        console.error('error:', cmd.stderr.data);
+                        return [2 /*return*/, false];
                 }
             });
         });
