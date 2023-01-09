@@ -45,6 +45,7 @@ export default class MegaCmd {
     rm(remotepath: string, inputOptions?: Partial<MegaCmdRmOptions>): Promise<boolean>;
     signup(email: string, password: string): Promise<boolean>;
     confirm(link: string, email: string, password: string): Promise<boolean>;
+    masterkey(): Promise<string | false>;
     static isIdle(): Promise<boolean>;
     static getProxy(): Promise<{
         type: string;

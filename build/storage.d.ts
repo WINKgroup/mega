@@ -38,6 +38,15 @@ export default class StorageMega {
         state: boolean;
         error: string;
     }>;
+    masterkey(): Promise<{
+        state: string;
+        result: string;
+        error?: undefined;
+    } | {
+        state: string;
+        error: string;
+        result?: undefined;
+    }>;
     static isLockAndLoginOk(lockAndLogin: StorageMegaLockAndLogin): boolean;
     static errorResponseForLockAndLogin(lockAndLogin: StorageMegaLockAndLogin): {
         state: "error" | "success";

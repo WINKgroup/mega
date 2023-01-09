@@ -226,6 +226,17 @@ export default class StorageMega {
         return { state: success, error:  success ? '' : megaCmd.getCmdOutput('stdout') }
     }
 
+    async masterkey() {
+        const lockingString = `storage ${ this.email } masterkey`
+        const lockResult = await this.getMegaCmdAndLogin(lockingString)
+        if (!StorageMega.isLockAndLoginOk(lockResult)) return StorageMega.errorResponseForLockAndLogin(lockResult)
+        const megaCmd = this.megaCmd!
+
+        const masterkey = await megaCmd.masterkey()
+        if (masterkey) this.consoleLog.print(`masterkey: ${ masterkey }`)
+        return masterkey ? { state: 'success', result: masterkey } : { state: 'error', error: 'parsing error' }
+    }
+
     static isLockAndLoginOk(lockAndLogin:StorageMegaLockAndLogin) {
         return ['newly locked', 'already locked'].indexOf(lockAndLogin) !== -1
     }

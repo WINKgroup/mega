@@ -65,6 +65,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var path_1 = __importDefault(require("path"));
 var glob_1 = __importDefault(require("glob"));
 var fs_1 = __importDefault(require("fs"));
+var os_1 = __importDefault(require("os"));
+var stream_1 = require("stream");
 var cmd_1 = __importDefault(require("@winkgroup/cmd"));
 var console_log_1 = __importStar(require("@winkgroup/console-log"));
 var event_queue_1 = __importDefault(require("@winkgroup/event-queue"));
@@ -963,6 +965,48 @@ var MegaCmd = /** @class */ (function () {
                         return [2 /*return*/, false];
                 }
             });
+        });
+    };
+    // unfortunaly this command is not accessible from a non interactive shell, we need a wokaround OS dependant
+    // tested on: Mac & Ubuntu
+    MegaCmd.prototype.masterkey = function () {
+        var _this = this;
+        var command = '';
+        switch (os_1.default.platform()) {
+            case 'darwin':
+                command = 'MegaCmdShell';
+                break;
+            case 'linux':
+                command = 'mega-cmd';
+                break;
+            default:
+                throw new Error('platform not implemented for mega-masterkey method');
+        }
+        return new Promise(function (resolve) {
+            var cmd = new cmd_1.default(command, {
+                consoleLogGeneralOptions: { verbosity: console_log_1.LogLevel.WARN }
+            });
+            var str = new stream_1.Readable();
+            var childProcess = cmd.start();
+            childProcess.on('close', function () {
+                if (cmd.stdout.data.indexOf('Not logged in.') !== -1) {
+                    _this.consoleLog.warn("user not logged: unable to get masterkey");
+                    resolve(false);
+                    return;
+                }
+                var matches = cmd.stdout.data.match(/\:\/\$ (\S{22})\n/);
+                if (!matches) {
+                    _this.consoleLog.error("unable to parse output in masterkey");
+                    console.error(cmd.stdout.data);
+                    resolve(false);
+                    return;
+                }
+                var masterkey = matches[1];
+                resolve(masterkey);
+            });
+            str.pipe(childProcess.stdin);
+            str.push('masterkey');
+            str.push(null);
         });
     };
     MegaCmd.isIdle = function () {

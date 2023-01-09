@@ -373,6 +373,29 @@ var StorageMega = /** @class */ (function () {
             });
         });
     };
+    StorageMega.prototype.masterkey = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var lockingString, lockResult, megaCmd, masterkey;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        lockingString = "storage ".concat(this.email, " masterkey");
+                        return [4 /*yield*/, this.getMegaCmdAndLogin(lockingString)];
+                    case 1:
+                        lockResult = _a.sent();
+                        if (!StorageMega.isLockAndLoginOk(lockResult))
+                            return [2 /*return*/, StorageMega.errorResponseForLockAndLogin(lockResult)];
+                        megaCmd = this.megaCmd;
+                        return [4 /*yield*/, megaCmd.masterkey()];
+                    case 2:
+                        masterkey = _a.sent();
+                        if (masterkey)
+                            this.consoleLog.print("masterkey: ".concat(masterkey));
+                        return [2 /*return*/, masterkey ? { state: 'success', result: masterkey } : { state: 'error', error: 'parsing error' }];
+                }
+            });
+        });
+    };
     StorageMega.isLockAndLoginOk = function (lockAndLogin) {
         return ['newly locked', 'already locked'].indexOf(lockAndLogin) !== -1;
     };

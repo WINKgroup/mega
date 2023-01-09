@@ -1,6 +1,8 @@
 import Path from 'path'
 import glob from 'glob'
 import fs from 'fs'
+import os from 'os'
+import { Readable } from 'stream'
 import Cmd, { CmdOptions } from "@winkgroup/cmd"
 import ConsoleLog, { LogLevel } from "@winkgroup/console-log"
 import EventQueue from "@winkgroup/event-queue"
@@ -10,6 +12,7 @@ import _ from "lodash"
 import { EventEmitter } from "node:events"
 
 import { getBytesByChildren, MegaCmdFile, MegaCmdGetTransferResult, MegaCmdOptions, MegaCmdDfResult, MegaCmdDfResultSection,  MegaCmdLsOptions, MegaCmdLsResult, MegaCmdRmOptions, MegaTransfer, MegaTransferResult, MegaTransferFile, MegaCmdProgressTransfer } from "./common"
+import { ChildProcessWithoutNullStreams } from 'node:child_process'
 
 export interface MegaCmdGetOptions extends CmdOptions {
     merge: boolean
@@ -686,6 +689,46 @@ export default class MegaCmd {
         console.error('output:', cmd.stdout.data)
         console.error('error:', cmd.stderr.data)
         return false
+    }
+
+    // unfortunaly this command is not accessible from a non interactive shell, we need a wokaround OS dependant
+    // tested on: Mac & Ubuntu
+    masterkey() {
+        let command = ''
+        switch(os.platform()) {
+            case 'darwin': command = 'MegaCmdShell';    break;
+            case 'linux': command = 'mega-cmd';         break;
+            default:
+                throw new Error('platform not implemented for mega-masterkey method')
+        }
+
+        return new Promise<string | false>( resolve => {
+            const cmd = new Cmd(command, {
+                consoleLogGeneralOptions: { verbosity: LogLevel.WARN }
+            })
+            const str = new Readable()
+            const childProcess = cmd.start() as ChildProcessWithoutNullStreams
+            childProcess.on('close', () => {
+                if (cmd.stdout.data.indexOf('Not logged in.') !== -1) {
+                    this.consoleLog.warn(`user not logged: unable to get masterkey`)
+                    resolve(false)
+                    return
+                }
+
+                const matches = cmd.stdout.data.match(/\:\/\$ (\S{22})\n/)
+                if (!matches) {
+                    this.consoleLog.error(`unable to parse output in masterkey`)
+                    console.error(cmd.stdout.data)
+                    resolve(false)
+                    return
+                }
+                const masterkey = matches[1]
+                resolve(masterkey)
+            })
+            str.pipe(childProcess.stdin)
+            str.push('masterkey')
+            str.push(null)
+        })
     }
 
     static async isIdle() {
