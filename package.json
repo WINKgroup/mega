@@ -12,8 +12,9 @@
     "build": "npm run clean && tsc",
     "format": "prettier --write 'src/**/*.ts' 'playground/**/*.ts'",
     "prepare": "npm run build",
-    "test": "npx ts-node-dev src/test.ts",
-    "playground": "npx ts-node-dev playground/playground.ts"
+    "test": "ts-node-dev src/test.ts",
+    "playground": "ts-node-dev playground/playground.ts",
+    "postversion": "git push && git push --tags"
   },
   "repository": {
     "type": "git",
@@ -29,11 +30,11 @@
   },
   "homepage": "https://github.com/WINKgroup/mega#readme",
   "dependencies": {
-    "@winkgroup/cmd": "^1.2.1",
-    "@winkgroup/console-log": "^1.0.9",
-    "@winkgroup/event-queue": "^1.0.1",
+    "@winkgroup/cmd": "^2.0.0",
+    "@winkgroup/console-log": "^2.0.1",
+    "@winkgroup/event-queue": "^2.0.0",
     "@winkgroup/misc": "^2.0.0",
-    "@winkgroup/network": "^1.1.4",
+    "@winkgroup/network": "^2.0.0",
     "glob": "^8.0.3",
     "lodash": "^4.17.21"
   },
