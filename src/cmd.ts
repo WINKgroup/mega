@@ -10,6 +10,8 @@ import { EventEmitter } from 'node:events';
 import os from 'os';
 import Path from 'path';
 import { Readable } from 'stream';
+import { ChildProcessWithoutNullStreams } from 'node:child_process';
+
 import {
     getBytesByChildren,
     MegaCmdDfResult,
@@ -18,13 +20,14 @@ import {
     MegaCmdGetTransferResult,
     MegaCmdLsOptions,
     MegaCmdLsResult,
-    MegaCmdOptions,
     MegaCmdRmOptions,
     MegaTransferFile,
     MegaTransferResult,
 } from './common';
 
-import { ChildProcessWithoutNullStreams } from 'node:child_process';
+export interface MegaCmdOptions {
+    consoleLog: ConsoleLog;
+}
 
 export interface MegaCmdGetOptions extends CmdOptions {
     merge: boolean;

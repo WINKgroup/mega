@@ -1,9 +1,4 @@
 import { CmdOptions } from '@winkgroup/cmd';
-import ConsoleLog from '@winkgroup/console-log';
-
-export interface MegaCmdOptions {
-    consoleLog: ConsoleLog;
-}
 
 export declare type MegaCmdFileType = 'file' | 'directory';
 export interface MegaCmdFile {
