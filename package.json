@@ -34,7 +34,7 @@
     "@winkgroup/console-log": "^2.0.1",
     "@winkgroup/event-queue": "^2.0.0",
     "@winkgroup/misc": "^2.0.0",
-    "@winkgroup/network": "^2.0.0",
+    "@winkgroup/network": "^2.0.1",
     "glob": "^8.0.3",
     "lodash": "^4.17.21"
   },
