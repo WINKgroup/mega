@@ -2,13 +2,12 @@ import ConsoleLog, { LogLevel } from '@winkgroup/console-log';
 import { byteString } from '@winkgroup/misc';
 import fs from 'fs';
 import _ from 'lodash';
-import MegaCmd, { MegaCmdPutOptions } from '.';
+import { MegaCmd, MegaCmdPutOptions } from './cmd';
 import {
     MegaCmdDfResult,
     MegaCmdFile,
     MegaCmdFileType,
     MegaCmdLsOptions,
-    MegaCmdLsResult,
     MegaCmdRmOptions,
     MegaTransferResult,
     StorageMegaIsFileOkOptions,
@@ -43,7 +42,7 @@ export type StorageMegaLockAndLogin =
     | 'unable to login'
     | 'storage error';
 
-export default class StorageMega {
+export class StorageMega {
     email: string;
     password: string;
     timeoutInSecondsToGetMegaCmd?: number;
