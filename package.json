@@ -14,7 +14,7 @@
     "prepare": "npm run build",
     "test": "ts-node-dev src/test.ts",
     "playground": "ts-node-dev playground/playground.ts",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags && npm publish"
   },
   "repository": {
     "type": "git",
