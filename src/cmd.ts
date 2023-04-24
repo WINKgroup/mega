@@ -908,7 +908,7 @@ export class MegaCmd {
     }
 
     static async setProxy(type: 'none' | 'auto' | string) {
-        const mega = new MegaCmd();
+        const mega = new MegaCmd({ consoleLog: new ConsoleLog({ verbosity: LogLevel.NONE }) });
         let typeStr = type;
         if (type === 'none') typeStr = '--none';
         if (type === 'auto') typeStr = '--auto';

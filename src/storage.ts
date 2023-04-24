@@ -328,10 +328,13 @@ export class StorageMega {
             return StorageMega.errorResponseForLockAndLogin(lockResult);
         const megaCmd = this.megaCmd!;
         const success = await megaCmd.rm(remotepath, inputOptions);
-        return {
-            state: success,
-            error: success ? '' : megaCmd.getCmdOutput('stdout'),
-        };
+
+        const result:StorageMegaMethodResponse<void> = {
+            state: success ? 'success' : 'error'
+        }
+
+        if (!success) result.error = megaCmd.getCmdOutput('stdout')
+        return result
     }
 
     async masterkey() {
