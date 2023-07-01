@@ -1,5 +1,5 @@
 import Cmd, { CmdOptions } from '@winkgroup/cmd';
-import ConsoleLog, { LogLevel } from '@winkgroup/console-log';
+import ConsoleLog, { ConsoleLogLevel } from '@winkgroup/console-log';
 import EventQueue from '@winkgroup/event-queue';
 import { byteString } from '@winkgroup/misc';
 import Network from '@winkgroup/network';
@@ -62,7 +62,7 @@ export class MegaCmd {
 
     protected async run(cmd: string, inputCmdOptions?: Partial<CmdOptions>) {
         const cmdOptions: Partial<CmdOptions> = _.defaults(inputCmdOptions, {
-            stderrOptions: { logLevel: LogLevel.DEBUG },
+            stderrOptions: { logLevel: ConsoleLogLevel.DEBUG },
         });
 
         this.runningCmd = new Cmd(cmd, cmdOptions);
@@ -82,7 +82,7 @@ export class MegaCmd {
 
     async whoAmI() {
         await this.run('mega-whoami', {
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         let result = this.getCmdOutput();
         if (result.indexOf('Not logged in') !== -1) return null;
@@ -105,7 +105,7 @@ export class MegaCmd {
         if (currentEmail) await this.logout();
         const cmd = await this.run('mega-login', {
             args: [email, password],
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         const newEmail = await this.whoAmI();
         if (newEmail === email) {
@@ -122,7 +122,7 @@ export class MegaCmd {
     async logout() {
         await this.run('mega-logout', {
             getResult: false,
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         this.consoleLog.print('logout');
         delete this.consoleLog.generalOptions.id;
@@ -190,7 +190,7 @@ export class MegaCmd {
 
         const sections = ['Cloud drive:', 'Inbox:', 'Rubbish bin:'];
         await this.run('mega-df', {
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         output = this.getCmdOutput();
 
@@ -267,7 +267,7 @@ export class MegaCmd {
 
         await this.run('mega-ls', {
             args: args,
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         const outputStr = this.getCmdOutput();
         if (outputStr.indexOf("Couldn't find") !== -1) return result;
@@ -378,7 +378,7 @@ export class MegaCmd {
 
     async pwd() {
         const cmd = await this.run('mega-pwd', {
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
 
         return cmd.exitCode === 0 ? cmd.stdout.data.trim() : false;
@@ -535,7 +535,7 @@ export class MegaCmd {
 
     protected async progress(cmd: Cmd, inputOptions?: EventEmitter) {
         cmd.consoleLog = this.consoleLog.spawn();
-        cmd.stderr.logLevel = LogLevel.DEBUG;
+        cmd.stderr.logLevel = ConsoleLogLevel.DEBUG;
         const onProgress = inputOptions;
         const mega = this;
         let started = false;
@@ -654,7 +654,7 @@ export class MegaCmd {
     async getTransfers() {
         const cmd = await this.run('mega-transfers', {
             args: ['--path-display-size=10000'],
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         const lines = cmd.stdout.data.split('\n');
         let generalState = 'running';
@@ -779,7 +779,7 @@ export class MegaCmd {
         await this.logout();
         const cmd = await this.run('mega-signup', {
             args: [email, password],
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
         if (cmd.stdout.data.indexOf('Already exists') !== -1) {
             this.consoleLog.warn(`unable to signup ${email}: already exists`);
@@ -805,7 +805,7 @@ export class MegaCmd {
         await this.logout();
         const cmd = await this.run('mega-confirm', {
             args: [link, email, password],
-            consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
         });
 
         if (
@@ -842,7 +842,7 @@ export class MegaCmd {
 
         return new Promise<string | false>((resolve) => {
             const cmd = new Cmd(command, {
-                consoleLogGeneralOptions: { verbosity: LogLevel.WARN },
+                consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.WARN }),
             });
             const str = new Readable();
             const childProcess = cmd.start() as ChildProcessWithoutNullStreams;
@@ -885,7 +885,7 @@ export class MegaCmd {
         const mega = new MegaCmd();
         const output = (
             await mega.run('mega-proxy', {
-                consoleLogGeneralOptions: { verbosity: LogLevel.WARN },
+                consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.WARN }),
             })
         ).stdout.data;
         if (output.indexOf('Proxy disabled') !== -1) return null;
@@ -908,7 +908,9 @@ export class MegaCmd {
     }
 
     static async setProxy(type: 'none' | 'auto' | string) {
-        const mega = new MegaCmd({ consoleLog: new ConsoleLog({ verbosity: LogLevel.NONE }) });
+        const mega = new MegaCmd({
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
+        });
         let typeStr = type;
         if (type === 'none') typeStr = '--none';
         if (type === 'auto') typeStr = '--auto';
@@ -934,7 +936,7 @@ export class MegaCmd {
             await mega.run('mega-help', {
                 timeout: 30,
                 getResult: false,
-                consoleLogGeneralOptions: { verbosity: LogLevel.NONE },
+                consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
             });
             mega.consoleLog.print('Mega Server ready');
             this.started = true;

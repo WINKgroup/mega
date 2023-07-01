@@ -1,4 +1,4 @@
-import ConsoleLog, { LogLevel } from '@winkgroup/console-log';
+import ConsoleLog, { ConsoleLogLevel } from '@winkgroup/console-log';
 import { byteString } from '@winkgroup/misc';
 import fs from 'fs';
 import _ from 'lodash';
@@ -115,7 +115,7 @@ export class StorageMega {
 
         const previousMegaCmdConsoleLog = megaCmd.consoleLog.spawn();
         if (options.noLogs)
-            megaCmd.consoleLog.generalOptions.verbosity = LogLevel.WARN;
+            megaCmd.consoleLog.generalOptions.verbosity = ConsoleLogLevel.WARN;
         const result = await megaCmd.df();
         megaCmd.consoleLog = previousMegaCmdConsoleLog;
         this.unlockEventually(lockingString, lockResult);
@@ -329,12 +329,12 @@ export class StorageMega {
         const megaCmd = this.megaCmd!;
         const success = await megaCmd.rm(remotepath, inputOptions);
 
-        const result:StorageMegaMethodResponse<void> = {
-            state: success ? 'success' : 'error'
-        }
+        const result: StorageMegaMethodResponse<void> = {
+            state: success ? 'success' : 'error',
+        };
 
-        if (!success) result.error = megaCmd.getCmdOutput('stdout')
-        return result
+        if (!success) result.error = megaCmd.getCmdOutput('stdout');
+        return result;
     }
 
     async masterkey() {
