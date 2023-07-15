@@ -60,7 +60,7 @@ export class StorageMega {
     }
 
     async getMegaCmdAndLogin(
-        lockingString: string
+        lockingString: string,
     ): Promise<StorageMegaLockAndLogin> {
         const previouslyLocked = !!this.megaCmd;
 
@@ -68,17 +68,17 @@ export class StorageMega {
             if (typeof this.timeoutInSecondsToGetMegaCmd !== 'undefined')
                 this.megaCmd = await MegaCmd.getOrWait(
                     lockingString,
-                    this.timeoutInSecondsToGetMegaCmd
+                    this.timeoutInSecondsToGetMegaCmd,
                 );
             else this.megaCmd = await MegaCmd.get(lockingString);
             if (!this.megaCmd) {
                 if (this.timeoutInSecondsToGetMegaCmd !== 0)
                     this.consoleLog.warn(
-                        `timeout or fail in getOrWait with lockingString "${lockingString}" ( currently locked by ${MegaCmd.getLockedBy()} )`
+                        `timeout or fail in getOrWait with lockingString "${lockingString}" ( currently locked by ${MegaCmd.getLockedBy()} )`,
                     );
                 else
                     this.consoleLog.debug(
-                        `megaCmd not available for lockingString "${lockingString}"`
+                        `megaCmd not available for lockingString "${lockingString}"`,
                     );
                 return 'unable to lock';
             }
@@ -87,7 +87,7 @@ export class StorageMega {
         this.megaCmd.consoleLog = this.consoleLog.spawn();
         if (!(await this.megaCmd.login(this.email, this.password))) {
             this.consoleLog.warn(
-                `unable to login with lockingString "${lockingString}"`
+                `unable to login with lockingString "${lockingString}"`,
             );
             MegaCmd.unlock(lockingString);
             return 'unable to login';
@@ -98,13 +98,13 @@ export class StorageMega {
 
     protected unlockEventually(
         lockingString: string,
-        lockAndLogin: StorageMegaLockAndLogin
+        lockAndLogin: StorageMegaLockAndLogin,
     ) {
         if (lockAndLogin === 'newly locked') MegaCmd.unlock(lockingString);
     }
 
     async df(
-        inputOptions?: Partial<StorageMegaDfOptions>
+        inputOptions?: Partial<StorageMegaDfOptions>,
     ): Promise<StorageMegaMethodResponse<MegaCmdDfResult>> {
         const options = _.defaults(inputOptions, { noLogs: false });
         const lockingString = `storage ${this.email} df`;
@@ -126,15 +126,15 @@ export class StorageMega {
         if (!options.noLogs)
             this.consoleLog.print(
                 `free bytes: ${byteString(result.freeBytes)} / ${byteString(
-                    result.totalBytes
-                )}`
+                    result.totalBytes,
+                )}`,
             );
 
         return { state: 'success', result: result };
     }
 
     async getPathType(
-        path: string
+        path: string,
     ): Promise<StorageMegaMethodResponse<'none' | MegaCmdFileType>> {
         const lockingString = `storage ${this.email} getPathType`;
         const lockResult = await this.getMegaCmdAndLogin(lockingString);
@@ -152,7 +152,7 @@ export class StorageMega {
 
     async ls(
         remotepath = '',
-        inputOptions?: Partial<MegaCmdLsOptions>
+        inputOptions?: Partial<MegaCmdLsOptions>,
     ): Promise<StorageMegaMethodResponse<MegaCmdFile>> {
         const lockingString = `storage ${this.email} ls`;
         const lockResult = await this.getMegaCmdAndLogin(lockingString);
@@ -175,7 +175,7 @@ export class StorageMega {
     async isFileOk(
         remotepath: string,
         expectedBytes: number,
-        inputOptions?: Partial<StorageMegaIsFileOkOptions>
+        inputOptions?: Partial<StorageMegaIsFileOkOptions>,
     ): Promise<StorageMegaMethodResponse<StorageMegaIsFileOkResult>> {
         if (!expectedBytes)
             return { state: 'error', error: 'expectedBytes cannot be 0' };
@@ -216,7 +216,7 @@ export class StorageMega {
     async upload(
         localpath: string | string[],
         remotepath = '',
-        inputOptions?: Partial<StorageMegaUploadOptions>
+        inputOptions?: Partial<StorageMegaUploadOptions>,
     ): Promise<StorageMegaMethodResponse<StorageMegaTransferResult>> {
         const options = _.defaults(inputOptions, {
             allowOverwrite: false,
@@ -248,7 +248,7 @@ export class StorageMega {
         if (filesToUpload.transfers.length === 0) {
             this.unlockEventually(lockingString, lockResult);
             this.consoleLog.warn(
-                `no files to upload with localpath: ${localpath}`
+                `no files to upload with localpath: ${localpath}`,
             );
             return setError('no files to upload');
         }
@@ -257,7 +257,7 @@ export class StorageMega {
             if (filesToUpload.transfers.length > 1) {
                 // TODO
                 throw new Error(
-                    'allowOverwrite on multiple files not implemented: should match ls with list of transfers'
+                    'allowOverwrite on multiple files not implemented: should match ls with list of transfers',
                 );
             } else {
                 const remotepath = filesToUpload.transfers[0].destinationPath;
@@ -289,7 +289,7 @@ export class StorageMega {
             const localBytes = fileTransferExpected.bytes;
             const isFileOkResponse = await this.isFileOk(
                 fileTransferExpected.destinationPath,
-                localBytes
+                localBytes,
             );
             if (isFileOkResponse.state === 'error')
                 return setError(isFileOkResponse.error!);
@@ -309,7 +309,7 @@ export class StorageMega {
             if (!isFileOkResult.isOk) {
                 responseState = 'error';
                 this.consoleLog.error(
-                    transferStr + `: ${isFileOkResult.message}`
+                    transferStr + `: ${isFileOkResult.message}`,
                 );
             } else this.consoleLog.debug(transferStr + `: ok!`);
 

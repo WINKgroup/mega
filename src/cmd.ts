@@ -145,7 +145,7 @@ export class MegaCmd {
 
         function setDataFromUsedStorageLine(line: string) {
             const matches = line.match(
-                /USED STORAGE:\s+(\d+)\s+([^\s]+) of (\d+)/
+                /USED STORAGE:\s+(\d+)\s+([^\s]+) of (\d+)/,
             );
             if (!matches) return parsingError(line);
             usedBytes = parseInt(matches[1]);
@@ -155,7 +155,7 @@ export class MegaCmd {
 
         function setDataFromFileVersionsLine(line: string) {
             const matches = line.match(
-                /Total size taken up by file versions:\s+(\d+)/
+                /Total size taken up by file versions:\s+(\d+)/,
             );
             if (!matches) return parsingError(line);
             fileVersionsBytes = parseInt(matches[1]);
@@ -164,7 +164,7 @@ export class MegaCmd {
 
         function setDataFromGeneralLine(line: string) {
             const matches = line.match(
-                /(.+):\s+(\d+) in\s+(\d+) file\(s\) and\s+(\d+) folder\(s\)/
+                /(.+):\s+(\d+) in\s+(\d+) file\(s\) and\s+(\d+) folder\(s\)/,
             );
             if (!matches) return parsingError(line);
             const result: MegaCmdDfResultSection = {
@@ -220,7 +220,7 @@ export class MegaCmd {
         };
 
         this.consoleLog.print(
-            `df -> ${byteString(freeBytes)} / ${byteString(totalBytes)}`
+            `df -> ${byteString(freeBytes)} / ${byteString(totalBytes)}`,
         );
         return result;
     }
@@ -285,7 +285,7 @@ export class MegaCmd {
         for (const line of lines) {
             if (!line) continue;
             const match = line.match(
-                /([\S]{4})\s+(\d+|-)\s+(\d+|-)\s+([\S]{19})\s+(.+)/
+                /([\S]{4})\s+(\d+|-)\s+(\d+|-)\s+([\S]{19})\s+(.+)/,
             );
             if (!match) {
                 const err = `Unable to parse mega-ls line: ${line}`;
@@ -306,7 +306,7 @@ export class MegaCmd {
 
             let fullPath =
                 await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(
-                    remotepath
+                    remotepath,
                 );
             if (fullPath === false) {
                 result.state = 'error';
@@ -354,7 +354,7 @@ export class MegaCmd {
         else {
             const fullPath =
                 await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(
-                    remotepath
+                    remotepath,
                 );
             if (fullPath === false) {
                 result.state = 'error';
@@ -410,7 +410,7 @@ export class MegaCmd {
             for (const localpathEl of localpath) {
                 const resultEl = await this.put2transfers(
                     localpathEl,
-                    remotepath
+                    remotepath,
                 );
                 if (!resultEl) return false;
                 result.totalBytes += resultEl.totalBytes;
@@ -434,13 +434,13 @@ export class MegaCmd {
         const remotepathType = await this.getRemotePathType(remotepath);
         if (remotepathType === false) {
             this.consoleLog.error(
-                'unable to get remote path type in put2transfers'
+                'unable to get remote path type in put2transfers',
             );
             return false;
         }
         const remoteBasePath =
             await this.getRemoteAbsolutePathWithCurrentWorkingDirectory(
-                remotepath
+                remotepath,
             );
         if (remoteBasePath === false) {
             this.consoleLog.error('unable to get remote base path');
@@ -483,7 +483,7 @@ export class MegaCmd {
     async put(
         localpath: string | string[],
         remotepath = '',
-        inputOptions?: Partial<MegaCmdPutOptions>
+        inputOptions?: Partial<MegaCmdPutOptions>,
     ) {
         const options: Partial<MegaCmdPutOptions> = _.defaults(inputOptions, {
             args: [],
@@ -510,7 +510,7 @@ export class MegaCmd {
     async get(
         remotepath: string,
         localpath = '',
-        inputOptions?: Partial<MegaCmdGetOptions>
+        inputOptions?: Partial<MegaCmdGetOptions>,
     ) {
         const options: MegaCmdGetOptions = _.defaults(inputOptions, {
             args: [],
@@ -543,7 +543,7 @@ export class MegaCmd {
 
         function transferringParser(text: string) {
             const parsed = text.match(
-                /\((\d+)\/(\d+)\s+([^:]+):\s+([0-9.]+)\s+%\)/
+                /\((\d+)\/(\d+)\s+([^:]+):\s+([0-9.]+)\s+%\)/,
             );
             if (!parsed) {
                 mega.consoleLog.warn(`transferring parsing error: ${text}`);
@@ -563,7 +563,7 @@ export class MegaCmd {
                     break;
                 default:
                     mega.consoleLog.warn(
-                        `transferring parsing unit unknown: ${parsed[3]}`
+                        `transferring parsing unit unknown: ${parsed[3]}`,
                     );
                     return null;
             }
@@ -597,7 +597,7 @@ export class MegaCmd {
         function transferActionMessage(
             action: string,
             success: boolean,
-            tag?: number
+            tag?: number,
         ) {
             const secondPart = tag
                 ? `transfer with tag ${tag}`
@@ -619,7 +619,7 @@ export class MegaCmd {
                     if (transfers) onProgress.emit('transfers', transfers);
                     else
                         mega.consoleLog.warn(
-                            'unable to get transfers during progress'
+                            'unable to get transfers during progress',
                         );
 
                     cmd.stderr.addListener('data', listener);
@@ -687,7 +687,7 @@ export class MegaCmd {
                     break;
                 default:
                     this.consoleLog.error(
-                        `unrecognized "${fields[0]}" symbol in transfer command`
+                        `unrecognized "${fields[0]}" symbol in transfer command`,
                     );
                     return false;
             }
@@ -696,7 +696,7 @@ export class MegaCmd {
             const tag = parseInt(fields[1]);
             if (tag === 0) {
                 this.consoleLog.error(
-                    `unrecognized "${fields[1]}" tag in transfer command`
+                    `unrecognized "${fields[1]}" tag in transfer command`,
                 );
                 return false;
             }
@@ -718,7 +718,7 @@ export class MegaCmd {
                     break;
                 default:
                     this.consoleLog.error(
-                        `unrecognized "${fields[7]}" as totalBytes unit in transfer command`
+                        `unrecognized "${fields[7]}" as totalBytes unit in transfer command`,
                     );
                     return false;
             }
@@ -787,11 +787,11 @@ export class MegaCmd {
         }
         if (
             cmd.stdout.data.indexOf(
-                'created succesfully. You will receive a confirmation link'
+                'created succesfully. You will receive a confirmation link',
             ) !== -1
         ) {
             this.consoleLog.print(
-                `${email} signup success, waiting for confirmation...`
+                `${email} signup success, waiting for confirmation...`,
             );
             return true;
         }
@@ -810,7 +810,7 @@ export class MegaCmd {
 
         if (
             cmd.stdout.data.indexOf(
-                'confirmed succesfully. You can login with it now'
+                'confirmed succesfully. You can login with it now',
             ) !== -1
         ) {
             this.consoleLog.print(`${email} account created and confirmed!`);
@@ -836,7 +836,7 @@ export class MegaCmd {
                 break;
             default:
                 throw new Error(
-                    'platform not implemented for mega-masterkey method'
+                    'platform not implemented for mega-masterkey method',
                 );
         }
 
@@ -849,7 +849,7 @@ export class MegaCmd {
             childProcess.on('close', () => {
                 if (cmd.stdout.data.indexOf('Not logged in.') !== -1) {
                     this.consoleLog.warn(
-                        `user not logged: unable to get masterkey`
+                        `user not logged: unable to get masterkey`,
                     );
                     resolve(false);
                     return;
@@ -858,7 +858,7 @@ export class MegaCmd {
                 const matches = cmd.stdout.data.match(/\:\/\$ (\S{22})\n/);
                 if (!matches) {
                     this.consoleLog.error(
-                        `unable to parse output in masterkey`
+                        `unable to parse output in masterkey`,
                     );
                     console.error(cmd.stdout.data);
                     resolve(false);
@@ -945,7 +945,7 @@ export class MegaCmd {
             const message = `${e}`;
             if (message.indexOf('ENOENT') !== -1)
                 mega.consoleLog.error(
-                    'mega-help not found, probably mega not installed!'
+                    'mega-help not found, probably mega not installed!',
                 );
             else mega.consoleLog.warn(message);
             return false;
@@ -974,7 +974,7 @@ export class MegaCmd {
         }
         if (lockedBy !== this.lockedBy) {
             this.consoleLog.warn(
-                `wrong lockingSecret ${this.lockedBy} != ${lockedBy}`
+                `wrong lockingSecret ${this.lockedBy} != ${lockedBy}`,
             );
             return false;
         }
@@ -1010,8 +1010,8 @@ export class MegaCmd {
                 resolve(
                     this.getOrWait(
                         lockedBy,
-                        timeoutInSeconds ? timeoutInSeconds - timeSpent : 0
-                    )
+                        timeoutInSeconds ? timeoutInSeconds - timeSpent : 0,
+                    ),
                 );
             };
 
@@ -1023,7 +1023,7 @@ export class MegaCmd {
                     network.off('online', onlineAgain);
                     resolved = true;
                     this.consoleLog.debug(
-                        `${lockedBy} getOrWait timeout triggered`
+                        `${lockedBy} getOrWait timeout triggered`,
                     );
                     resolve(null);
                 }, timeoutInSeconds * 1000);
@@ -1032,7 +1032,7 @@ export class MegaCmd {
             this.onIdle.add(() => {
                 if (resolved) return;
                 this.consoleLog.debug(
-                    `${lockedBy} getOrWait unlocked triggered`
+                    `${lockedBy} getOrWait unlocked triggered`,
                 );
                 setResolved();
             });

@@ -71,7 +71,7 @@ Options:
                         recursive: recursiveStr === 'y',
                     });
                     console.info(
-                        util.inspect(resultLs, { depth: 20, colors: true })
+                        util.inspect(resultLs, { depth: 20, colors: true }),
                     );
                 }
 
@@ -99,11 +99,11 @@ s = stop
                         'started',
                         (info: { totalBytes: number }) => {
                             bar.start(info.totalBytes, 0);
-                        }
+                        },
                     );
 
                     eventEmitter.on('progress', (info: { bytes: number }) =>
-                        bar.update(info.bytes)
+                        bar.update(info.bytes),
                     );
 
                     const uploader = () =>
@@ -130,7 +130,7 @@ s = stop
                     const result = await uploader();
                     bar.stop();
                     console.log(
-                        util.inspect(result, { depth: 20, colors: true })
+                        util.inspect(result, { depth: 20, colors: true }),
                     );
                 }
                 break;
@@ -143,7 +143,7 @@ s = stop
             case '7':
                 {
                     const remotepath = await question(
-                        'proxy to set (special: "none" | "auto"): '
+                        'proxy to set (special: "none" | "auto"): ',
                     );
                     await MegaCmd.setProxy(remotepath);
                 }
