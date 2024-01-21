@@ -6,9 +6,9 @@
 import { getKeypress, question } from '@winkgroup/misc/dist/node';
 import fs from 'fs';
 import util from 'util';
-import MegaCmd from '../src';
-import StorageMega from '../src/storage';
-import cliProgress from 'cli-progress';
+import { MegaCmd } from '../src';
+import { StorageMega } from '../src/storage';
+import ProgressBar from 'progress'
 import EventEmitter from 'node:events';
 import {
     StorageMegaMethodResponse,
@@ -92,18 +92,18 @@ r = resume
 s = stop                    
                     `);
 
-                    const bar = new cliProgress.SingleBar({});
+                    let bar = null as ProgressBar | null
                     const eventEmitter = new EventEmitter();
 
                     eventEmitter.on(
                         'started',
                         (info: { totalBytes: number }) => {
-                            bar.start(info.totalBytes, 0);
+                            bar = new ProgressBar('[:bar] :rate/bps :percent :etas', {total: info.totalBytes})
                         },
                     );
 
                     eventEmitter.on('progress', (info: { bytes: number }) =>
-                        bar.update(info.bytes),
+                        bar ? bar.tick(info.bytes) : undefined
                     );
 
                     const uploader = () =>
@@ -128,7 +128,7 @@ s = stop
                             }
                         });
                     const result = await uploader();
-                    bar.stop();
+                    bar = null
                     console.log(
                         util.inspect(result, { depth: 20, colors: true }),
                     );

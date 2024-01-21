@@ -74,5 +74,13 @@ These two commands can manage also the progress during the transfer providing an
     ...
 ```
 
+## Playground as Interactive Integration Test
+under *playground* folder some extra code is provided to make some interctive integration tests.
+This is a command line interface to manage the storage of a specific Mega account.
+Here the steps to run this test:
+1. copy *playground/config.template.json* to *playground/config.json*
+1. edit *playground/config.json* setting the credetials of a real mega account
+2. run ```npm run playground``` or ```yarn playground```
+
 ## Maintainers
 * [fairsayan](https://github.com/fairsayan)

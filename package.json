@@ -34,17 +34,17 @@
     "@winkgroup/console-log": "^3.0.2",
     "@winkgroup/event-queue": "^2.0.3",
     "@winkgroup/misc": "^2.0.3",
-    "@winkgroup/network": "^3.0.1",
-    "glob": "^10.3.3",
-    "lodash": "^4.17.21"
+    "@winkgroup/network": "^3.0.3",
+    "glob": "~10.2.6",
+    "lodash": "*4.17.21",
+    "progress": "^2.0.3"
   },
   "devDependencies": {
-    "@types/cli-progress": "^3.11.0",
-    "@types/lodash": "^4.14.195",
-    "@types/node": "^20.4.2",
-    "cli-progress": "^3.12.0",
-    "prettier": "^3.0.0",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.1.6"
+    "@types/lodash": "*4.14.202",
+    "@types/node": "^20.11.5",
+    "@types/progress": "^2.0.7",
+    "prettier": "*3.2.4",
+    "ts-node": "*10.9.2",
+    "typescript": "*5.3.3"
   }
 }
