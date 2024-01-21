@@ -8,7 +8,7 @@ import fs from 'fs';
 import util from 'util';
 import { MegaCmd } from '../src';
 import { StorageMega } from '../src/storage';
-import ProgressBar from 'progress'
+import ProgressBar from 'progress';
 import EventEmitter from 'node:events';
 import {
     StorageMegaMethodResponse,
@@ -92,18 +92,21 @@ r = resume
 s = stop                    
                     `);
 
-                    let bar = null as ProgressBar | null
+                    let bar = null as ProgressBar | null;
                     const eventEmitter = new EventEmitter();
 
                     eventEmitter.on(
                         'started',
                         (info: { totalBytes: number }) => {
-                            bar = new ProgressBar('[:bar] :rate/bps :percent :etas', {total: info.totalBytes})
+                            bar = new ProgressBar(
+                                '[:bar] :rate/bps :percent :etas',
+                                { total: info.totalBytes },
+                            );
                         },
                     );
 
                     eventEmitter.on('progress', (info: { bytes: number }) =>
-                        bar ? bar.tick(info.bytes) : undefined
+                        bar ? bar.tick(info.bytes) : undefined,
                     );
 
                     const uploader = () =>
@@ -128,7 +131,7 @@ s = stop
                             }
                         });
                     const result = await uploader();
-                    bar = null
+                    bar = null;
                     console.log(
                         util.inspect(result, { depth: 20, colors: true }),
                     );

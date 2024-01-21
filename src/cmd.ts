@@ -4,7 +4,7 @@ import EventQueue from '@winkgroup/event-queue';
 import { byteString } from '@winkgroup/misc';
 import Network from '@winkgroup/network';
 import fs from 'fs';
-import glob from 'glob';
+import { globSync } from 'glob';
 import _ from 'lodash';
 import { EventEmitter } from 'node:events';
 import os from 'os';
@@ -427,7 +427,7 @@ export class MegaCmd {
         escapedLocalpath = escapedLocalpath.replace(/\(/, '\\(');
         escapedLocalpath = escapedLocalpath.replace(/\)/, '\\(');
 
-        const list = glob.sync(escapedLocalpath, { dot: true });
+        const list = globSync(escapedLocalpath, { dot: true });
         if (list.length === 0) return result;
 
         const workingDir = process.cwd();
@@ -468,7 +468,7 @@ export class MegaCmd {
         for (const localpath of list) {
             const stats = fs.statSync(localpath);
             if (stats.isDirectory()) {
-                const subList = glob.sync(Path.join(localpath, '**/*'), {
+                const subList = globSync(Path.join(localpath, '**/*'), {
                     dot: true,
                     nodir: true,
                 });
@@ -883,14 +883,20 @@ export class MegaCmd {
 
     static async getProxy() {
         const mega = new MegaCmd();
-        const output = (
-            await mega.run('mega-proxy', {
-                consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.WARN }),
-            })
-        ).stdout.data;
-        if (output.indexOf('Proxy disabled') !== -1) return null;
+        const output = await mega.run('mega-proxy', {
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.WARN }),
+        });
 
-        const lines = output.split('\n');
+        const stdOut = output.stdout.data;
+        const stdErr = output.stderr.data;
+
+        if (
+            stdOut.indexOf('Proxy disabled') !== -1 ||
+            stdErr.indexOf('No proxy configuration')
+        )
+            return null;
+
+        const lines = stdOut.split('\n');
         let type = '';
         let url = '';
         for (const line of lines) {
@@ -920,9 +926,11 @@ export class MegaCmd {
         });
 
         const proxyInfo = await this.getProxy();
-        if (!proxyInfo && type === 'none') return '';
-        if (type === 'auto' && proxyInfo!.type === 'AUTO') return '';
-        if (proxyInfo!.type === 'CUSTOM') return '';
+        console.log(proxyInfo);
+        if (!proxyInfo && (type === 'none' || type === 'auto'))
+            return proxyInfo;
+        if (type === 'auto' && proxyInfo!.type === 'AUTO') return proxyInfo;
+        if (proxyInfo!.type === 'CUSTOM') return proxyInfo;
         throw 'unable to properly set proxy';
     }
 
