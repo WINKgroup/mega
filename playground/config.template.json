@@ -1,4 +1,11 @@
 {
-    "email": "...",
-    "password": "..."
+    "playground": {
+        "email": "...",
+        "password": "..."
+    },
+    "test": {
+        "email": "...",
+        "password": "...",
+        "key": "..."
+    }
 }

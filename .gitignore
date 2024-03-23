@@ -4,3 +4,4 @@ playground/config.json
 yarn.lock
 node_modules
 dist
+.DS_Store

@@ -12,8 +12,8 @@
     "build": "npm run clean && tsc",
     "format": "prettier --write 'src/**/*.ts' 'playground/**/*.ts'",
     "prepare": "npm run build",
-    "test": "ts-node-dev src/test.ts",
     "playground": "ts-node-dev playground/playground.ts",
+    "test": "yarn jest",
     "postversion": "git push && git push --tags && npm publish"
   },
   "repository": {
@@ -40,11 +40,14 @@
     "progress": "^2.0.3"
   },
   "devDependencies": {
-    "@types/lodash": "*4.14.202",
-    "@types/node": "^20.11.5",
+    "@types/jest": "^29.5.12",
+    "@types/lodash": "4.17.0",
+    "@types/node": "^20.11.30",
     "@types/progress": "^2.0.7",
-    "prettier": "*3.2.4",
+    "jest": "^29.7.0",
+    "prettier": "3.2.5",
+    "ts-jest": "^29.1.2",
     "ts-node": "*10.9.2",
-    "typescript": "*5.3.3"
+    "typescript": "5.4.3"
   }
 }
