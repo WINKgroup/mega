@@ -892,7 +892,8 @@ export class MegaCmd {
 
         if (
             stdOut.indexOf('Proxy disabled') !== -1 ||
-            stdErr.indexOf('No proxy configuration')
+            stdOut.indexOf('No proxy configuration') !== -1 ||
+            stdErr.indexOf('No proxy configuration') !== -1
         )
             return null;
 
@@ -906,7 +907,7 @@ export class MegaCmd {
             if (urlMatch) url = urlMatch[1];
         }
         if (!type || (type === 'CUSTOM' && !url))
-            throw new Error(`unable to parse properly mega proxy: ${output}`);
+            throw new Error(`unable to parse properly mega proxy: ${stdOut}`);
         return {
             type: type,
             url: url,
@@ -914,19 +915,26 @@ export class MegaCmd {
     }
 
     static async setProxy(type: 'none' | 'auto' | string) {
-        const mega = new MegaCmd({
-            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE }),
-        });
+        const previousProxyInfo = await this.getProxy()
+        const mega = new MegaCmd();
         let typeStr = type;
         if (type === 'none') typeStr = '--none';
         if (type === 'auto') typeStr = '--auto';
         await mega.run('mega-proxy', {
             getResult: false,
             args: [typeStr],
+            consoleLog: new ConsoleLog({ verbosity: ConsoleLogLevel.NONE })
         });
 
         const proxyInfo = await this.getProxy();
-        console.log(proxyInfo);
+        if (!_.isEqual(previousProxyInfo, proxyInfo)) {
+            let message = ''
+            if (!proxyInfo) message = 'proxy: disabled'
+                else if (proxyInfo.type === 'AUTO') message = 'proxy: auto'
+                else message = 'proxy: ' + proxyInfo.url
+            this.consoleLog.print(message)
+        }
+
         if (!proxyInfo && (type === 'none' || type === 'auto'))
             return proxyInfo;
         if (type === 'auto' && proxyInfo!.type === 'AUTO') return proxyInfo;
